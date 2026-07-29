@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { calculatePrice } from './pricing-engine/pricingEngine';
-import { rzepakKomagra } from './pricing-engine/data/rzepak-komagra';
-import type { GrainPriceList, PriceCalculationResult } from './pricing-engine/types';
+import { calculatePrice } from './pricingEngine';
+import { rzepakKomagra } from './data/rzepak-komagra';
+import type { GrainPriceList, PriceCalculationResult } from './types';
 
 // Na razie tylko rzepak. Kolejne cenniki (pszenica, żyto, pszenżyto, kukurydza)
 // dojdą jako kolejne wpisy w tej liście — patrz TODO w README pricing-engine/.

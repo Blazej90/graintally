@@ -46,6 +46,20 @@ Nowy plik w `src/data/`, np. `pszenica-nazwa-skupu.ts`, eksportujący obiekt
 `GrainPriceList` w tym samym kształcie co `rzepakKomagra`. Silnik (`pricingEngine.ts`)
 nie wymaga żadnych zmian — cała różnica między zbożami to dane, nie kod.
 
+## Komponenty UI
+
+Przy budowaniu interfejsu korzystaj z gotowych komponentów z
+[shadcn/ui](https://ui.shadcn.com) zamiast pisać własne od zera:
+
+```bash
+pnpm dlx shadcn@latest add <nazwa-komponentu>
+```
+
+Jeśli shadcn nie jest jeszcze zainicjowany w projekcie (brak pliku
+`components.json`), najpierw `pnpm dlx shadcn@latest init --template vite` —
+CLI wykryje Vite + React i skonfiguruje Tailwind, `cn()` util oraz zmienne CSS
+automatycznie.
+
 ## Do zrobienia / do potwierdzenia (dla agenta kontynuującego pracę)
 
 1. **Brakujące cenniki**: pszenica, żyto, pszenżyto, kukurydza — potrzebne
@@ -60,3 +74,23 @@ nie wymaga żadnych zmian — cała różnica między zbożami to dane, nie kod.
    walidacja/checklista w UI przed pokazaniem wyniku.
 4. **Kolejny krok**: szkielet aplikacji (React + Vite + TypeScript + Firebase
    Firestore/Hosting) korzystający z tego modułu — osobna dostawa.
+
+## Tipy dla agenta pracującego w tym projekcie
+
+- **Cała logika cenowa to dane, nie kod.** Nowy cennik = nowy plik w
+  `src/data/`, nigdy nowa gałąź `if`/`switch` w `pricingEngine.ts`.
+- **Zaokrąglanie zawsze w górę.** "Za każde rozpoczęte 0,1%" = `Math.ceil`,
+  nigdy `Math.round` ani `Math.floor` — to celowe, nie błąd do naprawienia.
+- **Przed uznaniem zadania za zakończone** uruchom `pnpm run build` (albo
+  `tsc -b` w samym module) — ma przechodzić bez błędów typów.
+- **Menedżer pakietów: pnpm**, nie npm/yarn — nie generuj `package-lock.json`
+  ani `yarn.lock`.
+- **Nie commituj `.env` / `.env.local`** — tylko `.env.example`. Prawdziwe
+  klucze Firebase trzymane są lokalnie.
+- **`firestore.rules` jest celowo `deny-all`**, dopóki nie dojdzie Firebase
+  Auth — nie odblokowuj bez wyraźnej instrukcji.
+- **UI: shadcn/ui zamiast pisania od zera** — patrz sekcja "Komponenty UI"
+  wyżej.
+- Przy zmianach w silniku dopisz scenariusz testowy do `examples/example.ts`
+  zamiast tylko ręcznie sprawdzać w konsoli — łatwiej złapać regresję przy
+  kolejnej zmianie.
