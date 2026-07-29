@@ -57,4 +57,15 @@ console.assert(olej40.finalPricePerTonne === 2380.0, 'Oczekiwano 2380.00 zł/t d
 console.assert(olej38.finalPricePerTonne === 2308.6, 'Oczekiwano 2308.60 zł/t dla zaolejenia 38,00%');
 console.assert(olej42.finalPricePerTonne === 2451.4, 'Oczekiwano 2451.40 zł/t dla zaolejenia 42,00%');
 
+// Kontrola wilgotności: 7% = dopłata, 9% = baza, 9,5% = potrącenie, 10,01% = odrzucenie.
+const wilg7 = calculatePrice(rzepakKomagra, 2380, [{ key: 'wilgotnosc', value: 7.0 }], 1);
+const wilg9 = calculatePrice(rzepakKomagra, 2380, [{ key: 'wilgotnosc', value: 9.0 }], 1);
+const wilg95 = calculatePrice(rzepakKomagra, 2380, [{ key: 'wilgotnosc', value: 9.5 }], 1);
+const wilg1001 = calculatePrice(rzepakKomagra, 2380, [{ key: 'wilgotnosc', value: 10.01 }], 1);
+
+console.assert(wilg7.finalPricePerTonne === 2403.8, 'Oczekiwano 2403.80 zł/t dla wilgotności 7,00%');
+console.assert(wilg9.finalPricePerTonne === 2380.0, 'Oczekiwano 2380.00 zł/t dla wilgotności 9,00%');
+console.assert(wilg95.finalPricePerTonne === 2362.15, 'Oczekiwano 2362.15 zł/t dla wilgotności 9,50%');
+console.assert(wilg1001.rejected === true, 'Oczekiwano odrzucenia dostawy dla wilgotności 10,01%');
+
 console.log('\nKontrola zgodności z ręcznym wyliczeniem: OK');
