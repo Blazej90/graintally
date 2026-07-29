@@ -1,0 +1,14 @@
+{
+  "name": "graintally",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Silnik przeliczania cen skupu zbóż (rzepak, pszenica, żyto, pszenżyto, kukurydza) na podstawie cenników skupujących.",
+  "scripts": {
+    "example": "tsx src/examples/example.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
