@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select';
 import {
   Card,
+  CardAction,
   CardContent,
   CardHeader,
   CardTitle,
@@ -317,20 +318,13 @@ export default function App() {
               )}
             </div>
 
-            <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+            <div className="pt-2">
               <Button
                 onClick={handleCalculate}
                 disabled={hasErrors}
                 className="h-12 w-full text-base"
               >
                 Oblicz cenę
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleReset}
-                className="h-12 w-full text-base"
-              >
-                Wyczyść
               </Button>
             </div>
 
@@ -344,6 +338,11 @@ export default function App() {
           <Card className="border-primary/20 bg-gradient-to-br from-card to-secondary/40">
             <CardHeader>
               <CardTitle>Wynik</CardTitle>
+              <CardAction>
+                <Button variant="outline" size="sm" onClick={handleReset}>
+                  Wyczyść
+                </Button>
+              </CardAction>
             </CardHeader>
             <CardContent className="space-y-5">
               {result.rejected ? (
@@ -380,9 +379,9 @@ export default function App() {
                     ))}
                   </div>
 
-                  <div className="rounded-lg bg-primary/10 p-4 text-center">
-                    <p className="text-sm text-primary-foreground/80">Wartość dostawy ({result.tonnage} t)</p>
-                    <p className="text-2xl font-bold text-primary-foreground sm:text-3xl">
+                  <div className="rounded-lg bg-primary p-4 text-center text-primary-foreground shadow-sm">
+                    <p className="text-sm text-primary-foreground/90">Wartość dostawy ({result.tonnage} t)</p>
+                    <p className="text-2xl font-bold sm:text-3xl">
                       {formatNumber(result.totalValue)} zł
                     </p>
                   </div>
