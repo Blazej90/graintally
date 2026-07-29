@@ -3,6 +3,24 @@ import { calculatePrice } from '@/pricingEngine';
 import { rzepakKomagra, rzepakKomagraHardRequirements } from '@/data/rzepak-komagra';
 import type { GrainPriceList, PriceCalculationResult } from '@/types';
 
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '@/components/ui/card';
+
 const AVAILABLE_PRICE_LISTS: GrainPriceList[] = [rzepakKomagra];
 
 function parseDecimal(value: string): number | null {
@@ -143,153 +161,176 @@ export default function App() {
     tonnageNum === null;
 
   return (
-    <main style={{ maxWidth: 560, margin: '2rem auto', fontFamily: 'sans-serif', padding: '0 1rem' }}>
-      <h1>Kalkulator skupu zbóż</h1>
+    <main className="mx-auto max-w-xl space-y-6 p-6">
+      <h1 className="text-3xl font-bold tracking-tight">Kalkulator skupu zbóż</h1>
 
-      <label style={{ display: 'block', marginBottom: 12 }}>
-        Zboże / skupujący
-        <select
-          style={{ display: 'block', width: '100%', marginTop: 4, padding: 6 }}
-          value={priceList.grain}
-          onChange={(e) => {
-            const next = AVAILABLE_PRICE_LISTS.find((p) => p.grain === e.target.value);
-            if (next) {
-              setPriceList(next);
-              setRawValues({});
-              setHardReqValues({});
-              setResult(null);
-              setCalcError(null);
-            }
-          }}
-        >
-          {AVAILABLE_PRICE_LISTS.map((p) => (
-            <option key={p.grain} value={p.grain}>
-              {p.grain} ({p.buyer})
-            </option>
-          ))}
-        </select>
-      </label>
+      <Card>
+        <CardHeader>
+          <CardTitle>Dane wejściowe</CardTitle>
+          <CardDescription>{priceList.reference}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="priceList">Zboże / skupujący</Label>
+            <Select
+              value={priceList.grain}
+              onValueChange={(value) => {
+                const next = AVAILABLE_PRICE_LISTS.find((p) => p.grain === value);
+                if (next) {
+                  setPriceList(next);
+                  setRawValues({});
+                  setHardReqValues({});
+                  setResult(null);
+                  setCalcError(null);
+                }
+              }}
+            >
+              <SelectTrigger id="priceList">
+                <SelectValue placeholder="Wybierz cennik" />
+              </SelectTrigger>
+              <SelectContent>
+                {AVAILABLE_PRICE_LISTS.map((p) => (
+                  <SelectItem key={p.grain} value={p.grain}>
+                    {p.grain} ({p.buyer})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-      <NumberField
-        label="Cena bazowa netto (zł/t)"
-        value={rawBasePrice}
-        error={touched.basePrice ? errors.basePrice : undefined}
-        onChange={(v) => {
-          setRawBasePrice(v);
-          setTouched((prev) => ({ ...prev, basePrice: true }));
-        }}
-      />
+          <NumberField
+            id="basePrice"
+            label="Cena bazowa netto (zł/t)"
+            value={rawBasePrice}
+            error={touched.basePrice ? errors.basePrice : undefined}
+            onChange={(v) => {
+              setRawBasePrice(v);
+              setTouched((prev) => ({ ...prev, basePrice: true }));
+            }}
+          />
 
-      <NumberField
-        label="Tonaż (t)"
-        value={rawTonnage}
-        error={touched.tonnage ? errors.tonnage : undefined}
-        onChange={(v) => {
-          setRawTonnage(v);
-          setTouched((prev) => ({ ...prev, tonnage: true }));
-        }}
-      />
+          <NumberField
+            id="tonnage"
+            label="Tonaż (t)"
+            value={rawTonnage}
+            error={touched.tonnage ? errors.tonnage : undefined}
+            onChange={(v) => {
+              setRawTonnage(v);
+              setTouched((prev) => ({ ...prev, tonnage: true }));
+            }}
+          />
 
-      <h2 style={{ fontSize: '1.1rem', marginTop: 24 }}>Parametry jakości</h2>
-      {priceList.parameters.map((p) => (
-        <NumberField
-          key={p.key}
-          label={`${p.label} (${p.unit})`}
-          placeholder={String(p.basePoint)}
-          value={rawValues[p.key] ?? ''}
-          error={touched[p.key] ? errors[p.key] : undefined}
-          onChange={(v) => {
-            setRawValues((prev) => ({ ...prev, [p.key]: v }));
-            setTouched((prev) => ({ ...prev, [p.key]: true }));
-          }}
-        />
-      ))}
+          <div className="pt-2">
+            <h2 className="text-lg font-semibold">Parametry jakości</h2>
+          </div>
 
-      <section style={{ marginTop: 24 }}>
-        <h2 style={{ fontSize: '1.1rem' }}>Wymagania jakościowe Komagry (tak/nie)</h2>
-        <p style={{ fontSize: '0.85rem', color: '#555', marginTop: -8 }}>
-          Przekroczenie limitu = brak przyjęcia dostawy. Wpisz zmierzoną wartość lub zostaw puste,
-          jeśli nie badano.
-        </p>
-        {rzepakKomagraHardRequirements.map((req) => {
-          const failure = hardReqFailures.find((f) => f.req.key === req.key);
-          return (
+          {priceList.parameters.map((p) => (
             <NumberField
-              key={req.key}
-              label={`${req.label} — max ${req.max}${req.unit}`}
-              value={hardReqValues[req.key] ?? ''}
-              error={touched[req.key] ? failure?.error : undefined}
+              key={p.key}
+              id={p.key}
+              label={`${p.label} (${p.unit})`}
+              placeholder={String(p.basePoint)}
+              value={rawValues[p.key] ?? ''}
+              error={touched[p.key] ? errors[p.key] : undefined}
               onChange={(v) => {
-                setHardReqValues((prev) => ({ ...prev, [req.key]: v }));
-                setTouched((prev) => ({ ...prev, [req.key]: true }));
+                setRawValues((prev) => ({ ...prev, [p.key]: v }));
+                setTouched((prev) => ({ ...prev, [p.key]: true }));
               }}
             />
-          );
-        })}
-      </section>
+          ))}
 
-      <div style={{ marginTop: 16, display: 'flex', gap: 12 }}>
-        <button onClick={handleCalculate} disabled={hasErrors}>
-          Oblicz cenę
-        </button>
-        <button type="button" onClick={handleReset} style={{ background: 'transparent' }}>
-          Wyczyść
-        </button>
-      </div>
+          <div className="pt-2">
+            <h2 className="text-lg font-semibold">Wymagania jakościowe Komagry</h2>
+            <p className="text-sm text-muted-foreground">
+              Przekroczenie limitu = brak przyjęcia dostawy. Wpisz zmierzoną wartość lub zostaw puste,
+              jeśli nie badano.
+            </p>
+          </div>
 
-      {calcError && <p style={{ color: 'crimson', marginTop: 16 }}>{calcError}</p>}
+          {rzepakKomagraHardRequirements.map((req) => {
+            const failure = hardReqFailures.find((f) => f.req.key === req.key);
+            return (
+              <NumberField
+                key={req.key}
+                id={req.key}
+                label={`${req.label} — max ${req.max}${req.unit}`}
+                value={hardReqValues[req.key] ?? ''}
+                error={touched[req.key] ? failure?.error : undefined}
+                onChange={(v) => {
+                  setHardReqValues((prev) => ({ ...prev, [req.key]: v }));
+                  setTouched((prev) => ({ ...prev, [req.key]: true }));
+                }}
+              />
+            );
+          })}
+
+          <div className="flex gap-3 pt-2">
+            <Button onClick={handleCalculate} disabled={hasErrors}>
+              Oblicz cenę
+            </Button>
+            <Button variant="outline" onClick={handleReset}>
+              Wyczyść
+            </Button>
+          </div>
+
+          {calcError && (
+            <p className="text-sm font-medium text-destructive">{calcError}</p>
+          )}
+        </CardContent>
+      </Card>
 
       {result && (
-        <section style={{ marginTop: 24, padding: 16, background: '#f6f6f6', borderRadius: 8 }}>
-          {result.rejected ? (
-            <p style={{ color: 'crimson' }}>
-              <strong>Brak przyjęcia dostawy:</strong> {result.rejectReason}
-            </p>
-          ) : (
-            <>
-              <h2 style={{ fontSize: '1.1rem', marginTop: 0 }}>Wynik</h2>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <tbody>
-                  <tr>
-                    <td style={{ padding: '4px 0' }}>Cena bazowa</td>
-                    <td style={{ textAlign: 'right', fontWeight: 600 }}>{formatNumber(result.basePrice)} zł/t</td>
-                  </tr>
-                  {result.parameterResults.map((r) => (
-                    <tr key={r.key}>
-                      <td style={{ padding: '4px 0' }}>
-                        {r.label}: {r.value}{r.type === 'base' ? ' (baza)' : ''}
-                      </td>
-                      <td
-                        style={{
-                          textAlign: 'right',
-                          color: r.amountPerTonne > 0 ? 'green' : r.amountPerTonne < 0 ? 'crimson' : 'inherit',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {r.amountPerTonne > 0 ? '+' : ''}
-                        {formatNumber(r.amountPerTonne)} zł/t
-                      </td>
-                    </tr>
-                  ))}
-                  <tr style={{ borderTop: '2px solid #ccc' }}>
-                    <td style={{ padding: '8px 0', fontWeight: 700 }}>Cena końcowa</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatNumber(result.finalPricePerTonne)} zł/t</td>
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '4px 0' }}>Wartość dostawy ({result.tonnage} t)</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatNumber(result.totalValue)} zł</td>
-                  </tr>
-                </tbody>
-              </table>
-            </>
-          )}
-        </section>
+        <Card>
+          <CardHeader>
+            <CardTitle>Wynik</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {result.rejected ? (
+              <p className="font-medium text-destructive">
+                Brak przyjęcia dostawy: {result.rejectReason}
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <ResultRow label="Cena bazowa" value={`${formatNumber(result.basePrice)} zł/t`} />
+                {result.parameterResults.map((r) => (
+                  <ResultRow
+                    key={r.key}
+                    label={`${r.label}: ${r.value}${r.type === 'base' ? ' (baza)' : ''}`}
+                    value={`${r.amountPerTonne > 0 ? '+' : ''}${formatNumber(r.amountPerTonne)} zł/t`}
+                    valueClassName={
+                      r.amountPerTonne > 0
+                        ? 'text-green-600'
+                        : r.amountPerTonne < 0
+                          ? 'text-destructive'
+                          : undefined
+                    }
+                  />
+                ))}
+                <div className="border-t pt-2">
+                  <ResultRow
+                    label="Cena końcowa"
+                    value={`${formatNumber(result.finalPricePerTonne)} zł/t`}
+                    className="font-bold"
+                    valueClassName="font-bold"
+                  />
+                  <ResultRow
+                    label={`Wartość dostawy (${result.tonnage} t)`}
+                    value={`${formatNumber(result.totalValue)} zł`}
+                    className="font-bold"
+                    valueClassName="font-bold"
+                  />
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
     </main>
   );
 }
 
 interface NumberFieldProps {
+  id: string;
   label: string;
   value: string;
   placeholder?: string;
@@ -297,26 +338,36 @@ interface NumberFieldProps {
   onChange: (value: string) => void;
 }
 
-function NumberField({ label, value, placeholder, error, onChange }: NumberFieldProps) {
+function NumberField({ id, label, value, placeholder, error, onChange }: NumberFieldProps) {
   return (
-    <label style={{ display: 'block', marginBottom: 12 }}>
-      {label}
-      <input
-        style={{
-          display: 'block',
-          width: '100%',
-          marginTop: 4,
-          padding: 6,
-          border: error ? '2px solid crimson' : '1px solid #ccc',
-          borderRadius: 4,
-        }}
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
         type="text"
         inputMode="decimal"
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        aria-invalid={!!error}
       />
-      {error && <span style={{ color: 'crimson', fontSize: '0.8rem' }}>{error}</span>}
-    </label>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+interface ResultRowProps {
+  label: string;
+  value: string;
+  className?: string;
+  valueClassName?: string;
+}
+
+function ResultRow({ label, value, className, valueClassName }: ResultRowProps) {
+  return (
+    <div className={`flex items-center justify-between ${className ?? ''}`}>
+      <span>{label}</span>
+      <span className={valueClassName}>{value}</span>
+    </div>
   );
 }
