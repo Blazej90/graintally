@@ -18,8 +18,8 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
 
 const AVAILABLE_PRICE_LISTS: GrainPriceList[] = [rzepakKomagra];
 
@@ -43,6 +43,7 @@ export default function App() {
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [result, setResult] = useState<PriceCalculationResult | null>(null);
   const [calcError, setCalcError] = useState<string | null>(null);
+  const [hasLabResults, setHasLabResults] = useState(false);
 
   const basePriceNum = parseDecimal(rawBasePrice);
   const tonnageNum = parseDecimal(rawTonnage);
@@ -126,7 +127,7 @@ export default function App() {
       return;
     }
 
-    if (hardReqFailures.length > 0) {
+    if (hasLabResults && hardReqFailures.length > 0) {
       setCalcError('Dostawa nie spełnia wymagań Komagry — sprawdź checklistę poniżej.');
       setResult(null);
       return;
@@ -152,11 +153,12 @@ export default function App() {
     setTouched({});
     setResult(null);
     setCalcError(null);
+    setHasLabResults(false);
   }
 
   const hasErrors =
     Object.keys(errors).length > 0 ||
-    hardReqFailures.length > 0 ||
+    (hasLabResults && hardReqFailures.length > 0) ||
     basePriceNum === null ||
     tonnageNum === null;
 
@@ -167,7 +169,6 @@ export default function App() {
       <Card>
         <CardHeader>
           <CardTitle>Dane wejściowe</CardTitle>
-          <CardDescription>{priceList.reference}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -239,30 +240,63 @@ export default function App() {
             />
           ))}
 
-          <div className="pt-2">
-            <h2 className="text-lg font-semibold">Wymagania jakościowe Komagry</h2>
-            <p className="text-sm text-muted-foreground">
-              Przekroczenie limitu = brak przyjęcia dostawy. Wpisz zmierzoną wartość lub zostaw puste,
-              jeśli nie badano.
-            </p>
-          </div>
+          <div className="space-y-4 rounded-lg border p-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">Wymagania jakościowe Komagry</h2>
+                <p className="text-sm text-muted-foreground">
+                  Dane z badania laboratoryjnego próbki zboża.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Label htmlFor="labResults" className="text-sm font-normal">
+                  Mam wyniki badań
+                </Label>
+                <Switch
+                  id="labResults"
+                  checked={hasLabResults}
+                  onCheckedChange={(checked) => {
+                    setHasLabResults(checked);
+                    if (!checked) {
+                      setHardReqValues({});
+                      setTouched((prev) => {
+                        const next = { ...prev };
+                        for (const req of rzepakKomagraHardRequirements) {
+                          delete next[req.key];
+                        }
+                        return next;
+                      });
+                    }
+                  }}
+                />
+              </div>
+            </div>
 
-          {rzepakKomagraHardRequirements.map((req) => {
-            const failure = hardReqFailures.find((f) => f.req.key === req.key);
-            return (
-              <NumberField
-                key={req.key}
-                id={req.key}
-                label={`${req.label} — max ${req.max}${req.unit}`}
-                value={hardReqValues[req.key] ?? ''}
-                error={touched[req.key] ? failure?.error : undefined}
-                onChange={(v) => {
-                  setHardReqValues((prev) => ({ ...prev, [req.key]: v }));
-                  setTouched((prev) => ({ ...prev, [req.key]: true }));
-                }}
-              />
-            );
-          })}
+            {hasLabResults && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Przekroczenie limitu = brak przyjęcia dostawy. Wpisz zmierzoną wartość lub zostaw
+                  puste, jeśli nie badano.
+                </p>
+                {rzepakKomagraHardRequirements.map((req) => {
+                  const failure = hardReqFailures.find((f) => f.req.key === req.key);
+                  return (
+                    <NumberField
+                      key={req.key}
+                      id={req.key}
+                      label={`${req.label} — max ${req.max}${req.unit}`}
+                      value={hardReqValues[req.key] ?? ''}
+                      error={touched[req.key] ? failure?.error : undefined}
+                      onChange={(v) => {
+                        setHardReqValues((prev) => ({ ...prev, [req.key]: v }));
+                        setTouched((prev) => ({ ...prev, [req.key]: true }));
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           <div className="flex gap-3 pt-2">
             <Button onClick={handleCalculate} disabled={hasErrors}>
