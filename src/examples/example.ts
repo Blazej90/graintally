@@ -41,4 +41,20 @@ const check2 = calculatePrice(rzepakKomagra, 2380, [
 
 console.assert(check1.finalPricePerTonne === 2356.2, 'Oczekiwano 2356.20 zł/t dla zanieczyszczeń 4,00%');
 console.assert(check2.finalPricePerTonne === 2213.4, 'Oczekiwano 2213.40 zł/t dla zanieczyszczeń 6,00%');
+
+// Kontrola zaolejenia: 40% = cena bazowa, 38% = potrącenie, 42% = dopłata.
+const olej40 = calculatePrice(rzepakKomagra, 2380, [
+  { key: 'zaolejenie', value: 40.0 },
+], 1);
+const olej38 = calculatePrice(rzepakKomagra, 2380, [
+  { key: 'zaolejenie', value: 38.0 },
+], 1);
+const olej42 = calculatePrice(rzepakKomagra, 2380, [
+  { key: 'zaolejenie', value: 42.0 },
+], 1);
+
+console.assert(olej40.finalPricePerTonne === 2380.0, 'Oczekiwano 2380.00 zł/t dla zaolejenia 40,00%');
+console.assert(olej38.finalPricePerTonne === 2308.6, 'Oczekiwano 2308.60 zł/t dla zaolejenia 38,00%');
+console.assert(olej42.finalPricePerTonne === 2451.4, 'Oczekiwano 2451.40 zł/t dla zaolejenia 42,00%');
+
 console.log('\nKontrola zgodności z ręcznym wyliczeniem: OK');

@@ -11,7 +11,7 @@ function App() {
   const [priceList, setPriceList] = useState<GrainPriceList>(AVAILABLE_PRICE_LISTS[0]);
   const [basePrice, setBasePrice] = useState<number>(2380);
   const [tonnage, setTonnage] = useState<number>(1);
-  const [values, setValues] = useState<Record<string, number>>({});
+  const [rawValues, setRawValues] = useState<Record<string, string>>({});
   const [result, setResult] = useState<PriceCalculationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,7 +20,9 @@ function App() {
     try {
       const inputs = priceList.parameters.map((p) => ({
         key: p.key,
-        value: values[p.key] ?? p.basePoint,
+        value: rawValues[p.key]
+          ? Number(rawValues[p.key].replace(',', '.'))
+          : p.basePoint,
       }));
       setResult(calculatePrice(priceList, basePrice, inputs, tonnage));
     } catch (e) {
@@ -42,7 +44,7 @@ function App() {
             const next = AVAILABLE_PRICE_LISTS.find((p) => p.grain === e.target.value);
             if (next) {
               setPriceList(next);
-              setValues({});
+              setRawValues({});
               setResult(null);
             }
           }}
@@ -80,11 +82,13 @@ function App() {
           {p.label} ({p.unit})
           <input
             style={{ display: 'block', width: '100%' }}
-            type="number"
-            step="0.01"
-            value={values[p.key] ?? ''}
+            type="text"
+            inputMode="decimal"
+            value={rawValues[p.key] ?? ''}
             placeholder={String(p.basePoint)}
-            onChange={(e) => setValues({ ...values, [p.key]: Number(e.target.value) })}
+            onChange={(e) =>
+              setRawValues({ ...rawValues, [p.key]: e.target.value })
+            }
           />
         </label>
       ))}

@@ -54,7 +54,9 @@ export const rzepakKomagra: GrainPriceList = {
       step: 0.1,
       brackets: [
         { from: 35.0, to: 39.99, type: 'deduction', ratePerStep: 0.15 },
-        // Dopłata powyżej 40% tylko w wariancie "z dopłatą za poziom zaolejenia" — patrz UWAGA 2 wyżej.
+        // Przy dokładnie 40% cena bazowa — bez dopłaty/potrącenia.
+        { from: 40.0, to: 40.0, type: 'premium', ratePerStep: 0.15 },
+        // Dopłata powyżej 40% tylko w wariancie "z dopłatą za poziom zaolejenia".
         { from: 40.01, to: null, type: 'premium', ratePerStep: 0.15 },
       ],
     },
