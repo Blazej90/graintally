@@ -1,5 +1,5 @@
-import { calculatePrice } from '../pricingEngine';
-import { rzepakKomagra } from '../data/rzepak-komagra';
+import { calculatePrice } from '@/pricingEngine';
+import { rzepakKomagra } from '@/data/rzepak-komagra';
 
 function run(label: string, zanieczyszczenia: number) {
   const result = calculatePrice(

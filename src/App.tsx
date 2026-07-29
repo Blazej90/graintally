@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { calculatePrice } from './pricingEngine';
-import { rzepakKomagra, rzepakKomagraHardRequirements } from './data/rzepak-komagra';
-import type { GrainPriceList, PriceCalculationResult } from './types';
+import { calculatePrice } from '@/pricingEngine';
+import { rzepakKomagra, rzepakKomagraHardRequirements } from '@/data/rzepak-komagra';
+import type { GrainPriceList, PriceCalculationResult } from '@/types';
 
 const AVAILABLE_PRICE_LISTS: GrainPriceList[] = [rzepakKomagra];
 

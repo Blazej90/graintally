@@ -1,4 +1,4 @@
-import type { GrainPriceList } from '../types';
+import type { GrainPriceList } from '@/types';
 
 /**
  * Cennik rzepaku — Komagra Sp. z o.o.
