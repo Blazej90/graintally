@@ -1,5 +1,4 @@
 @import "tailwindcss";
-
 @import "tw-animate-css";
 
 @theme inline {
@@ -29,46 +28,53 @@
 }
 
 :root {
-  --background: hsl(0 0% 100%);
-  --foreground: hsl(0 0% 3.9%);
+  --background: hsl(48 33% 97%);
+  --foreground: hsl(142 30% 12%);
   --card: hsl(0 0% 100%);
-  --card-foreground: hsl(0 0% 3.9%);
+  --card-foreground: hsl(142 30% 12%);
   --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(0 0% 3.9%);
-  --primary: hsl(0 0% 9%);
-  --primary-foreground: hsl(0 0% 98%);
-  --secondary: hsl(0 0% 96.1%);
-  --secondary-foreground: hsl(0 0% 9%);
-  --muted: hsl(0 0% 96.1%);
-  --muted-foreground: hsl(0 0% 45.1%);
-  --accent: hsl(0 0% 96.1%);
-  --accent-foreground: hsl(0 0% 9%);
-  --destructive: hsl(0 84.2% 60.2%);
-  --destructive-foreground: hsl(0 0% 98%);
-  --border: hsl(0 0% 89.8%);
-  --input: hsl(0 0% 89.8%);
-  --ring: hsl(0 0% 3.9%);
-  --radius: 0.625rem;
+  --popover-foreground: hsl(142 30% 12%);
+  --primary: hsl(142 76% 29%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(48 33% 92%);
+  --secondary-foreground: hsl(142 30% 12%);
+  --muted: hsl(48 20% 92%);
+  --muted-foreground: hsl(142 15% 40%);
+  --accent: hsl(43 96% 56%);
+  --accent-foreground: hsl(142 30% 12%);
+  --destructive: hsl(0 84% 60%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --border: hsl(142 20% 85%);
+  --input: hsl(142 20% 85%);
+  --ring: hsl(142 76% 29%);
+  --radius: 0.75rem;
 }
 
 .dark {
-  --background: hsl(0 0% 3.9%);
-  --foreground: hsl(0 0% 98%);
-  --card: hsl(0 0% 3.9%);
-  --card-foreground: hsl(0 0% 98%);
-  --popover: hsl(0 0% 3.9%);
-  --popover-foreground: hsl(0 0% 98%);
-  --primary: hsl(0 0% 98%);
-  --primary-foreground: hsl(0 0% 9%);
-  --secondary: hsl(0 0% 14.9%);
-  --secondary-foreground: hsl(0 0% 98%);
-  --muted: hsl(0 0% 14.9%);
-  --muted-foreground: hsl(0 0% 63.9%);
-  --accent: hsl(0 0% 14.9%);
-  --accent-foreground: hsl(0 0% 98%);
-  --destructive: hsl(0 62.8% 30.6%);
-  --destructive-foreground: hsl(0 0% 98%);
-  --border: hsl(0 0% 14.9%);
-  --input: hsl(0 0% 14.9%);
-  --ring: hsl(0 0% 83.1%);
+  --background: hsl(142 30% 8%);
+  --foreground: hsl(48 20% 92%);
+  --card: hsl(142 25% 11%);
+  --card-foreground: hsl(48 20% 92%);
+  --popover: hsl(142 25% 11%);
+  --popover-foreground: hsl(48 20% 92%);
+  --primary: hsl(142 70% 45%);
+  --primary-foreground: hsl(142 30% 8%);
+  --secondary: hsl(142 20% 18%);
+  --secondary-foreground: hsl(48 20% 92%);
+  --muted: hsl(142 20% 18%);
+  --muted-foreground: hsl(48 15% 60%);
+  --accent: hsl(43 90% 55%);
+  --accent-foreground: hsl(142 30% 8%);
+  --destructive: hsl(0 70% 50%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --border: hsl(142 20% 22%);
+  --input: hsl(142 20% 22%);
+  --ring: hsl(142 70% 45%);
+}
+
+@layer base {
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
 }
