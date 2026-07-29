@@ -1,15 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Wheat, FlaskConical } from 'lucide-react';
+import { Wheat } from 'lucide-react';
 import { calculatePrice } from '@/pricingEngine';
 import { rzepakKomagra, rzepakKomagraHardRequirements } from '@/data/rzepak-komagra';
 import type { GrainPriceList, PriceCalculationResult } from '@/types';
-import { cn } from '@/lib/utils';
+import { parseDecimal, cn } from '@/lib/utils';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { ModeToggle } from '@/components/mode-toggle';
 import {
   Select,
   SelectContent,
@@ -24,15 +22,15 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { ModeToggle } from '@/components/mode-toggle';
+import {
+  TrailerForm,
+  TrailerFormState,
+  createEmptyTrailer,
+  validateTrailer,
+} from '@/components/trailer-form';
 
 const AVAILABLE_PRICE_LISTS: GrainPriceList[] = [rzepakKomagra];
-
-function parseDecimal(value: string): number | null {
-  const normalized = value.trim().replace(',', '.');
-  if (normalized === '' || normalized === '.' || normalized === '-') return null;
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
-}
 
 function formatNumber(n: number): string {
   return n.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -41,130 +39,91 @@ function formatNumber(n: number): string {
 export default function App() {
   const [priceList, setPriceList] = useState<GrainPriceList>(AVAILABLE_PRICE_LISTS[0]);
   const [rawBasePrice, setRawBasePrice] = useState<string>('2380');
-  const [rawTonnage, setRawTonnage] = useState<string>('1');
-  const [rawValues, setRawValues] = useState<Record<string, string>>({});
-  const [hardReqValues, setHardReqValues] = useState<Record<string, string>>({});
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [result, setResult] = useState<PriceCalculationResult | null>(null);
+  const [trailerCount, setTrailerCount] = useState<1 | 2>(1);
+  const [trailers, setTrailers] = useState<TrailerFormState[]>([createEmptyTrailer()]);
+  const [results, setResults] = useState<PriceCalculationResult[] | null>(null);
   const [calcError, setCalcError] = useState<string | null>(null);
-  const [hasLabResults, setHasLabResults] = useState(false);
 
   const basePriceNum = parseDecimal(rawBasePrice);
-  const tonnageNum = parseDecimal(rawTonnage);
 
-  const parameterNumbers = useMemo(() => {
-    const out: Record<string, number | null> = {};
-    for (const p of priceList.parameters) {
-      out[p.key] = parseDecimal(rawValues[p.key] ?? '');
-    }
-    return out;
-  }, [priceList.parameters, rawValues]);
+  const trailerValidations = useMemo(() => {
+    return trailers.map((t) => validateTrailer(priceList, t));
+  }, [trailers, priceList]);
 
-  const errors = useMemo(() => {
-    const next: Record<string, string> = {};
-
-    if (rawBasePrice.trim() !== '' && (basePriceNum === null || basePriceNum <= 0)) {
-      next.basePrice = 'Podaj dodatnią cenę bazową.';
-    }
-    if (rawTonnage.trim() !== '' && (tonnageNum === null || tonnageNum < 0)) {
-      next.tonnage = 'Tonaż nie może być ujemny.';
-    }
-
-    for (const p of priceList.parameters) {
-      const raw = rawValues[p.key] ?? '';
-      if (raw.trim() === '') continue;
-      const v = parameterNumbers[p.key];
-      if (v === null) {
-        next[p.key] = 'Podaj poprawną liczbę.';
-      } else if (v < 0) {
-        next[p.key] = 'Wartość nie może być ujemna.';
-      } else if (v > 100) {
-        next[p.key] = 'Wartość nie może przekraczać 100.';
-      }
-    }
-
-    return next;
-  }, [basePriceNum, rawBasePrice, rawTonnage, tonnageNum, priceList.parameters, rawValues, parameterNumbers]);
-
-  const hardReqFailures = useMemo(() => {
-    return rzepakKomagraHardRequirements
-      .map((req) => {
-        const raw = hardReqValues[req.key] ?? '';
-        if (raw.trim() === '') return null;
-        const v = parseDecimal(raw);
-        if (v === null || v < 0) return { req, error: 'Podaj poprawną nieujemną liczbę.' };
-        if (v > req.max) return { req, error: `Przekroczono limit ${req.max}${req.unit}.` };
-        return null;
-      })
-      .filter(Boolean) as { req: (typeof rzepakKomagraHardRequirements)[number]; error: string }[];
-  }, [hardReqValues]);
-
-  function handleCalculate() {
-    setTouched({ basePrice: true, tonnage: true });
-    setTouched((prev) => {
-      const next = { ...prev };
-      for (const p of priceList.parameters) next[p.key] = true;
-      for (const req of rzepakKomagraHardRequirements) next[req.key] = true;
+  function updateTrailer(index: number, patch: Partial<TrailerFormState>) {
+    setTrailers((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], ...patch };
       return next;
     });
+  }
 
+  function handleTrailerCountChange(count: 1 | 2) {
+    setTrailerCount(count);
+    setTrailers((prev) => {
+      if (count === 1) return [prev[0] ?? createEmptyTrailer()];
+      const first = prev[0] ?? createEmptyTrailer();
+      const second = prev[1] ?? createEmptyTrailer();
+      return [first, second];
+    });
+    setResults(null);
     setCalcError(null);
+  }
+
+  function handleCalculate() {
+    setCalcError(null);
+
+    // Mark everything as touched
+    setTrailers((prev) =>
+      prev.map((t) => {
+        const nextTouched: Record<string, boolean> = { ...t.touched, tonnage: true };
+        for (const p of priceList.parameters) nextTouched[p.key] = true;
+        if (t.hasLabResults) {
+          for (const req of rzepakKomagraHardRequirements) nextTouched[req.key] = true;
+        }
+        return { ...t, touched: nextTouched };
+      })
+    );
 
     if (basePriceNum === null || basePriceNum <= 0) {
       setCalcError('Podaj poprawną dodatnią cenę bazową.');
-      setResult(null);
-      return;
-    }
-    if (tonnageNum === null || tonnageNum < 0) {
-      setCalcError('Podaj poprawny nieujemny tonaż.');
-      setResult(null);
+      setResults(null);
       return;
     }
 
-    const invalidParam = priceList.parameters.find((p) => {
-      const v = parameterNumbers[p.key];
-      return v === null || v < 0 || v > 100;
-    });
-    if (invalidParam) {
-      setCalcError(`Popraw wartość parametru: ${invalidParam.label}.`);
-      setResult(null);
-      return;
-    }
-
-    if (hasLabResults && hardReqFailures.length > 0) {
-      setCalcError('Dostawa nie spełnia wymagań Komagry — sprawdź checklistę poniżej.');
-      setResult(null);
+    const invalidTrailerIndex = trailerValidations.findIndex((v) => v.hasErrors);
+    if (invalidTrailerIndex !== -1) {
+      setCalcError(`Popraw dane w przyczepie nr ${invalidTrailerIndex + 1}.`);
+      setResults(null);
       return;
     }
 
     try {
-      const inputs = priceList.parameters.map((p) => ({
-        key: p.key,
-        value: parameterNumbers[p.key] ?? p.basePoint,
-      }));
-      setResult(calculatePrice(priceList, basePriceNum, inputs, tonnageNum));
+      const nextResults = trailers.map((t) => {
+        const validation = validateTrailer(priceList, t);
+        const inputs = priceList.parameters.map((p) => ({
+          key: p.key,
+          value: validation.parameterNumbers[p.key] ?? p.basePoint,
+        }));
+        return calculatePrice(priceList, basePriceNum, inputs, validation.tonnageNum ?? 0);
+      });
+      setResults(nextResults);
     } catch (e) {
-      setResult(null);
+      setResults(null);
       setCalcError((e as Error).message);
     }
   }
 
   function handleReset() {
     setRawBasePrice('2380');
-    setRawTonnage('1');
-    setRawValues({});
-    setHardReqValues({});
-    setTouched({});
-    setResult(null);
+    setTrailerCount(1);
+    setTrailers([createEmptyTrailer()]);
+    setResults(null);
     setCalcError(null);
-    setHasLabResults(false);
   }
 
-  const hasErrors =
-    Object.keys(errors).length > 0 ||
-    (hasLabResults && hardReqFailures.length > 0) ||
-    basePriceNum === null ||
-    tonnageNum === null;
+  const totalValue = results?.reduce((sum, r) => sum + r.totalValue, 0) ?? 0;
+  const anyRejected = results?.some((r) => r.rejected) ?? false;
 
   return (
     <div className="min-h-screen bg-background">
@@ -175,7 +134,7 @@ export default function App() {
               <Wheat className="size-5" />
             </div>
             <div>
-              <h1 className="text-xl font-bold leading-tight">GrainTally</h1>
+              <h1 className="text-xl font-bold leading-tight">Kłosek</h1>
               <p className="text-xs text-muted-foreground">Kalkulator cen skupu zbóż</p>
             </div>
           </div>
@@ -186,7 +145,7 @@ export default function App() {
       <main className="mx-auto max-w-xl space-y-4 p-4 pb-10 sm:space-y-6 sm:p-6 sm:pb-12">
         <Card>
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg">Dane wejściowe</CardTitle>
+            <CardTitle className="text-lg">Dane transportu</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -199,9 +158,8 @@ export default function App() {
                   const next = AVAILABLE_PRICE_LISTS.find((p) => p.grain === value);
                   if (next) {
                     setPriceList(next);
-                    setRawValues({});
-                    setHardReqValues({});
-                    setResult(null);
+                    setTrailers((prev) => prev.map(() => createEmptyTrailer()));
+                    setResults(null);
                     setCalcError(null);
                   }
                 }}
@@ -223,119 +181,66 @@ export default function App() {
               id="basePrice"
               label="Cena bazowa netto (zł/t)"
               value={rawBasePrice}
-              error={touched.basePrice ? errors.basePrice : undefined}
-              onChange={(v) => {
-                setRawBasePrice(v);
-                setTouched((prev) => ({ ...prev, basePrice: true }));
-              }}
+              error={
+                rawBasePrice.trim() !== '' && (basePriceNum === null || basePriceNum <= 0)
+                  ? 'Podaj dodatnią cenę bazową.'
+                  : undefined
+              }
+              onChange={(v) => setRawBasePrice(v)}
             />
 
-            <NumberField
-              id="tonnage"
-              label="Tonaż (t)"
-              value={rawTonnage}
-              error={touched.tonnage ? errors.tonnage : undefined}
-              onChange={(v) => {
-                setRawTonnage(v);
-                setTouched((prev) => ({ ...prev, tonnage: true }));
-              }}
-            />
-
-            <div className="pt-2">
-              <h2 className="text-lg font-semibold">Parametry jakości</h2>
-            </div>
-
-            {priceList.parameters.map((p) => (
-              <NumberField
-                key={p.key}
-                id={p.key}
-                label={`${p.label} (${p.unit})`}
-                placeholder={String(p.basePoint)}
-                value={rawValues[p.key] ?? ''}
-                error={touched[p.key] ? errors[p.key] : undefined}
-                onChange={(v) => {
-                  setRawValues((prev) => ({ ...prev, [p.key]: v }));
-                  setTouched((prev) => ({ ...prev, [p.key]: true }));
-                }}
-              />
-            ))}
-
-            <div className="space-y-4 rounded-lg border bg-secondary/30 p-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h2 className="text-base font-semibold">Badanie laboratoryjne</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Sprawdź czy dostawa zostanie przyjęta.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <FlaskConical className="size-4 text-muted-foreground" />
-                  <Label htmlFor="labResults" className="text-sm font-normal">
-                    Mam wyniki badań
-                  </Label>
-                  <Switch
-                    id="labResults"
-                    checked={hasLabResults}
-                    onCheckedChange={(checked) => {
-                      setHasLabResults(checked);
-                      if (!checked) {
-                        setHardReqValues({});
-                        setTouched((prev) => {
-                          const next = { ...prev };
-                          for (const req of rzepakKomagraHardRequirements) {
-                            delete next[req.key];
-                          }
-                          return next;
-                        });
-                      }
-                    }}
-                  />
-                </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Liczba przyczep</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  type="button"
+                  variant={trailerCount === 1 ? 'default' : 'outline'}
+                  className="h-12 text-base"
+                  onClick={() => handleTrailerCountChange(1)}
+                >
+                  Jedna przyczepa
+                </Button>
+                <Button
+                  type="button"
+                  variant={trailerCount === 2 ? 'default' : 'outline'}
+                  className="h-12 text-base"
+                  onClick={() => handleTrailerCountChange(2)}
+                >
+                  Dwie przyczepy
+                </Button>
               </div>
-
-              {hasLabResults && (
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Przekroczenie limitu = brak przyjęcia dostawy. Wpisz zmierzoną wartość lub zostaw
-                    puste, jeśli nie badano.
-                  </p>
-                  {rzepakKomagraHardRequirements.map((req) => {
-                    const failure = hardReqFailures.find((f) => f.req.key === req.key);
-                    return (
-                      <NumberField
-                        key={req.key}
-                        id={req.key}
-                        label={`${req.label} — max ${req.max}${req.unit}`}
-                        value={hardReqValues[req.key] ?? ''}
-                        error={touched[req.key] ? failure?.error : undefined}
-                        onChange={(v) => {
-                          setHardReqValues((prev) => ({ ...prev, [req.key]: v }));
-                          setTouched((prev) => ({ ...prev, [req.key]: true }));
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-              )}
             </div>
-
-            <div className="pt-2">
-              <Button
-                onClick={handleCalculate}
-                disabled={hasErrors}
-                className="h-12 w-full text-base"
-              >
-                Oblicz cenę
-              </Button>
-            </div>
-
-            {calcError && (
-              <p className="text-sm font-medium text-destructive">{calcError}</p>
-            )}
           </CardContent>
         </Card>
 
-        {result && (
+        <div className="space-y-4">
+          {trailers.slice(0, trailerCount).map((trailer, index) => (
+            <TrailerForm
+              key={index}
+              index={index + 1}
+              priceList={priceList}
+              data={trailer}
+              onChange={(patch) => updateTrailer(index, patch)}
+            />
+          ))}
+        </div>
+
+        <div className="pt-1">
+          <Button
+            onClick={handleCalculate}
+            disabled={basePriceNum === null || basePriceNum <= 0}
+            className="h-12 w-full text-base"
+          >
+            Oblicz cenę
+          </Button>
+          {calcError && (
+            <p className="mt-3 text-center text-sm font-medium text-destructive">
+              {calcError}
+            </p>
+          )}
+        </div>
+
+        {results && (
           <Card className="border-primary/20 bg-gradient-to-br from-card to-secondary/40">
             <CardHeader>
               <CardTitle>Wynik</CardTitle>
@@ -346,44 +251,93 @@ export default function App() {
               </CardAction>
             </CardHeader>
             <CardContent className="space-y-5">
-              {result.rejected ? (
-                <p className="font-medium text-destructive">
-                  Brak przyjęcia dostawy: {result.rejectReason}
-                </p>
+              {anyRejected ? (
+                <div className="space-y-3">
+                  {results.map((result, idx) =>
+                    result.rejected ? (
+                      <div
+                        key={idx}
+                        className="rounded-lg border border-destructive/30 bg-destructive/10 p-3"
+                      >
+                        <p className="text-sm font-semibold text-destructive">
+                          Przyczepa nr {idx + 1}: brak przyjęcia
+                        </p>
+                        <p className="text-sm text-destructive/90">{result.rejectReason}</p>
+                      </div>
+                    ) : (
+                      <div key={idx} className="rounded-lg border p-3">
+                        <p className="text-sm text-muted-foreground">Przyczepa nr {idx + 1}</p>
+                        <p className="text-lg font-semibold text-primary">
+                          {formatNumber(result.finalPricePerTonne)} zł/t
+                        </p>
+                        <p className="text-sm">Wartość: {formatNumber(result.totalValue)} zł</p>
+                      </div>
+                    )
+                  )}
+                </div>
               ) : (
                 <>
-                  <div className="text-center">
-                    <p className="text-sm text-muted-foreground">Cena końcowa</p>
-                    <p className="text-4xl font-extrabold tracking-tight text-primary sm:text-5xl">
-                      {formatNumber(result.finalPricePerTonne)} zł/t
-                    </p>
-                  </div>
-
-                  <div className="space-y-2 rounded-lg border bg-card p-4">
-                    <ResultRow
-                      label="Cena bazowa"
-                      value={`${formatNumber(result.basePrice)} zł/t`}
-                    />
-                    {result.parameterResults.map((r) => (
-                      <ResultRow
-                        key={r.key}
-                        label={`${r.label}: ${r.value}${r.type === 'base' ? ' (baza)' : ''}`}
-                        value={`${r.amountPerTonne > 0 ? '+' : ''}${formatNumber(r.amountPerTonne)} zł/t`}
-                        valueClassName={
-                          r.amountPerTonne > 0
-                            ? 'text-green-600'
-                            : r.amountPerTonne < 0
-                              ? 'text-destructive'
-                              : undefined
-                        }
-                      />
+                  <div
+                    className={cn(
+                      'grid gap-3',
+                      results.length === 2 ? 'grid-cols-2' : 'grid-cols-1'
+                    )}
+                  >
+                    {results.map((result, idx) => (
+                      <div
+                        key={idx}
+                        className={cn(
+                          'rounded-lg border bg-card p-3 text-center',
+                          results.length === 1 && 'p-4'
+                        )}
+                      >
+                        <p className="text-xs text-muted-foreground sm:text-sm">
+                          Przyczepa nr {idx + 1} ({trailers[idx].tonnage} t)
+                        </p>
+                        <p
+                          className={cn(
+                            'font-bold text-primary',
+                            results.length === 1 ? 'text-4xl sm:text-5xl' : 'text-2xl sm:text-3xl'
+                          )}
+                        >
+                          {formatNumber(result.finalPricePerTonne)} zł/t
+                        </p>
+                        <p className="text-xs text-muted-foreground sm:text-sm">
+                          Wartość: {formatNumber(result.totalValue)} zł
+                        </p>
+                      </div>
                     ))}
                   </div>
 
+                  {results.length === 1 && (
+                    <div className="space-y-2 rounded-lg border bg-card p-4">
+                      <ResultRow
+                        label="Cena bazowa"
+                        value={`${formatNumber(results[0].basePrice)} zł/t`}
+                      />
+                      {results[0].parameterResults.map((r) => (
+                        <ResultRow
+                          key={r.key}
+                          label={`${r.label}: ${r.value}${r.type === 'base' ? ' (baza)' : ''}`}
+                          value={`${r.amountPerTonne > 0 ? '+' : ''}${formatNumber(r.amountPerTonne)} zł/t`}
+                          valueClassName={
+                            r.amountPerTonne > 0
+                              ? 'text-green-600'
+                              : r.amountPerTonne < 0
+                                ? 'text-destructive'
+                                : undefined
+                          }
+                        />
+                      ))}
+                    </div>
+                  )}
+
                   <div className="rounded-lg bg-primary p-4 text-center text-primary-foreground shadow-sm">
-                    <p className="text-sm text-primary-foreground/90">Wartość dostawy ({result.tonnage} t)</p>
+                    <p className="text-sm text-primary-foreground/90">
+                      {results.length === 1 ? 'Wartość dostawy' : 'Suma wartości dostawy'}
+                    </p>
                     <p className="text-2xl font-bold sm:text-3xl">
-                      {formatNumber(result.totalValue)} zł
+                      {formatNumber(totalValue)} zł
                     </p>
                   </div>
                 </>
@@ -403,10 +357,9 @@ interface NumberFieldProps {
   placeholder?: string;
   error?: string;
   onChange: (value: string) => void;
-  inputClassName?: string;
 }
 
-function NumberField({ id, label, value, placeholder, error, onChange, inputClassName }: NumberFieldProps) {
+function NumberField({ id, label, value, placeholder, error, onChange }: NumberFieldProps) {
   return (
     <div className="space-y-2">
       <Label htmlFor={id} className="text-sm font-medium">
@@ -420,7 +373,7 @@ function NumberField({ id, label, value, placeholder, error, onChange, inputClas
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={!!error}
-        className={cn('h-12 text-base sm:h-10', inputClassName)}
+        className="h-12 text-base sm:h-10"
       />
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
