@@ -11,3 +11,7 @@ export function parseDecimal(value: string): number | null {
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
 }
+
+export function formatNumber(n: number): string {
+  return n.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
