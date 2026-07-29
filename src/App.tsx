@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Wheat } from 'lucide-react';
+import { Wheat, FlaskConical } from 'lucide-react';
 import { calculatePrice } from '@/pricingEngine';
 import { rzepakKomagra, rzepakKomagraHardRequirements } from '@/data/rzepak-komagra';
 import type { GrainPriceList, PriceCalculationResult } from '@/types';
@@ -263,12 +263,13 @@ export default function App() {
             <div className="space-y-4 rounded-lg border bg-secondary/30 p-4">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold">Wymagania jakościowe Komagry</h2>
+                  <h2 className="text-base font-semibold">Badanie laboratoryjne</h2>
                   <p className="text-sm text-muted-foreground">
-                    Dane z badania laboratoryjnego próbki zboża.
+                    Sprawdź czy dostawa zostanie przyjęta.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
+                  <FlaskConical className="size-4 text-muted-foreground" />
                   <Label htmlFor="labResults" className="text-sm font-normal">
                     Mam wyniki badań
                   </Label>
