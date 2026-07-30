@@ -144,6 +144,9 @@ cenników skupujących, z frontendem React + Vite + Firebase.
 
 ## Zasady, których nie łam
 
+- **Nie pushuj bez zielonej bramki.** `pnpm run verify` (lint → build → testy
+  jednostkowe → e2e) musi przejść **przed każdym `git push`**. Szczegóły
+  w sekcji „Bramka przed pushem".
 - **Logika cenowa to dane, nie kod.** Nowy cennik = nowy plik w `src/data/`
   eksportujący `GrainPriceList` w kształcie `rzepakKomagra`. Nigdy nowa gałąź
   `if`/`switch` w `src/pricingEngine.ts` — silnik nie zna nazw zbóż.
@@ -184,9 +187,36 @@ niego przez upgrade do React 19. **Cofnięcie Reacta do 18 przywróci go w cało
 — `tests/calendar.spec.ts` wtedy oblewa wszystkimi ośmioma testami, z czego test
 kalendarza komunikatem „popover ucieka nad górną krawędź, Received: -586.375".
 
-## Weryfikacja zmian
+## Bramka przed pushem
+
+**`git push` jest dozwolony wyłącznie po zielonym `pnpm run verify`.**
 
 ```bash
+rtk pnpm run verify     # lint && build && test && test:e2e
+```
+
+To ta sama sekwencja i ta sama kolejność co w `.github/workflows/ci.yml`, więc
+zielona bramka lokalnie oznacza zielone CI. Całość zajmuje kilkanaście sekund —
+nie ma powodu jej pomijać. Zasady:
+
+- **Uruchamiaj na stanie, który faktycznie pushujesz** — po ostatnim commicie,
+  nie w połowie pracy. Doszedł jeszcze jeden commit? Bramka leci od nowa.
+- **Czerwona bramka = nie pushujesz.** Napraw albo zgłoś użytkownikowi, co jest
+  nie tak. Nie pushuj „bo to tylko lint" ani „bo ten test i tak jest flaky".
+- **Nie obchodź jej** przez `--no-verify`, wyłączanie reguł ESLinta, `test.skip`
+  ani zawężanie zakresu testów. Jeśli reguła albo test jest faktycznie zły, to
+  jest osobna decyzja do podjęcia z użytkownikiem, a nie sposób na przepchnięcie
+  pusha.
+- **Zgłoś wynik użytkownikowi** — przy raportowaniu pusha podaj, że bramka
+  przeszła, wraz z liczbami (`0 errors`, `12 passed`, `12 passed`).
+
+Bramka nie jest wymuszona hookiem gita — to świadoma decyzja, żeby nie blokować
+ręcznych pushów użytkownika. Dla agenta jest obowiązkowa.
+
+## Poszczególne kroki
+
+```bash
+rtk pnpm run lint       # eslint . — musi być 0 błędów
 rtk pnpm run build      # tsc -b && vite build — bez błędów typów
 rtk pnpm run test       # vitest run — silnik cenowy
 rtk pnpm run test:e2e   # playwright test — regresja UI (sam wstaje serwer dev)
@@ -202,7 +232,25 @@ rtk pnpm run example    # tsx src/examples/example.ts — wypisuje scenariusze
   i „widoczny", tylko poza ekranem. Jeśli dotykasz `ui/date-picker.tsx`,
   `ui/calendar.tsx`, `ui/popover.tsx` albo wersji Reacta — uruchom te testy.
 
-ESLinta w projekcie nie ma.
+- **`tests/transport-edit.spec.ts`** — tryb edycji (`/?edit=<id>`). Formularz
+  kalkulatora wypełnia się na pierwszym renderze, a wyjście z edycji polega na
+  przemontowaniu przez zmianę `key` — te testy pilnują obu ścieżek.
+
+To samo (lint + build + oba zestawy testów) chodzi w CI na każdy push i PR do
+`main` — `.github/workflows/ci.yml`. Przy porażce e2e raport Playwrighta ląduje
+jako artefakt przebiegu.
+
+### ESLint
+
+Flat config w `eslint.config.js`, reguły typowane (`projectService`). Stan
+docelowy to **0 błędów** — CI się na nich wywala. Zostawione są natomiast
+ostrzeżenia `react-refresh/only-export-components` (5 sztuk): dotyczą plików
+eksportujących obok komponentu też hook lub stałą, kosztują tylko pełny reload
+zamiast HMR w dev i niczego nie psują. Jedno z nich siedzi w `ui/button.tsx`,
+czyli w pliku shadcn — rozbijanie go rozjechałoby się z upstreamem.
+
+Uwaga przy aktualizacji: w `eslint-plugin-react-hooks` 7 warianty spod
+`configs.*` są nadal w formacie eslintrc, flat config jest pod `configs.flat.*`.
 
 ## Orientacja w kodzie
 
@@ -220,7 +268,9 @@ src/
   components/             – layout, dialogi, formularze + ui/ (shadcn)
   lib/                    – storage, fuzzy-search, utils (cn)
   examples/example.ts     – scenariusze silnika do oglądania w konsoli
-tests/calendar.spec.ts    – regresja kalendarza (playwright)
+tests/
+  calendar.spec.ts        – regresja kalendarza (playwright)
+  transport-edit.spec.ts  – tryb edycji transportu (playwright)
 firebase.ts               – konfiguracja Firebase (root, nie src/)
 ```
 

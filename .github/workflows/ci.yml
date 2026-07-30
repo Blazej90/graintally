@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Nowy push na tę samą gałąź anuluje poprzedni przebieg — nie ma sensu czekać
+# na wynik dla commita, który już jest nieaktualny.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalacja zależności
+        run: pnpm install --frozen-lockfile
+
+      # Bez --max-warnings: ostrzeżenia react-refresh są świadomie zostawione
+      # i nie mają blokować przebiegu. Błędy owszem — eslint zwraca wtedy 1.
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Testy jednostkowe
+        run: pnpm run test
+
+      # Tylko chromium — playwright.config.ts definiuje jeden projekt, a pełna
+      # trójka przeglądarek wydłużyłaby instalację bez zysku dla tych testów.
+      - name: Instalacja chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Testy e2e
+        run: pnpm run test:e2e
+
+      - name: Raport z nieudanych testów e2e
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

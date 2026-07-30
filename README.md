@@ -26,6 +26,7 @@ src/
   examples/
     example.ts              – przykład użycia + kontrola zgodności z ręcznym wyliczeniem
 tests/calendar.spec.ts      – regresja kalendarza w przeglądarce (playwright)
+tests/transport-edit.spec.ts – tryb edycji transportu (playwright)
 firebase.ts                 – konfiguracja Firebase
 firestore.rules             – celowo deny-all, dopóki nie dojdzie Firebase Auth
 ```
@@ -48,11 +49,16 @@ odrzucona (`rejected: true`) i cena końcowa = 0.
 ```bash
 pnpm install
 pnpm run dev        # aplikacja (Vite)
+pnpm run verify     # bramka przed pushem: lint + build + testy + e2e
+pnpm run lint       # eslint
 pnpm run build      # tsc -b && vite build
 pnpm run test       # testy jednostkowe silnika (vitest)
 pnpm run test:e2e   # testy UI w przeglądarce (playwright)
 pnpm run example    # scenariusze silnika wypisane w konsoli
 ```
+
+Lint, build i oba zestawy testów chodzą też w CI na każdy push i PR do `main`
+(`.github/workflows/ci.yml`).
 
 ### Przykład silnika
 
