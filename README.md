@@ -1,93 +1,162 @@
-# GrainTally — kalkulator cen skupu zbóż
+# GrainTally
 
-Aplikacja licząca cenę netto/t i wartość dostawy na podstawie cennika
-skupującego (dopłaty/potrącenia za wilgotność, zanieczyszczenia, zaolejenie itd.),
-z zapisem transportów i ich przeglądem.
+Kalkulator cen skupu zbóż dla rolnika. Podajesz cenę bazową, tonaż i wyniki
+badania laboratoryjnego dostawy — aplikacja liczy cenę netto za tonę po
+dopłatach i potrąceniach oraz łączną wartość transportu, zgodnie z cennikiem
+skupującego.
 
-Sercem projektu jest framework-agnostyczny silnik (`src/pricingEngine.ts`),
-niezależny od UI. Wokół niego stoi frontend React + Vite + Tailwind (shadcn/ui),
-z Firebase przewidzianym na warstwę danych.
+Zamiast liczyć potrącenia za wilgotność czy zanieczyszczenia ręcznie przy wadze,
+wpisujesz parametry z badania i od razu widzisz, ile faktycznie wychodzi za
+dostawę i skąd wzięła się różnica względem ceny bazowej.
+
+## Co potrafi
+
+- **Kalkulator ceny** — cena bazowa plus parametry jakości dają cenę netto/t,
+  rozbicie na poszczególne dopłaty i potrącenia oraz wartość całej dostawy.
+- **Dwie przyczepy w jednym transporcie** — osobne tonaże i osobne wyniki badań,
+  wspólne podsumowanie wartości.
+- **Odrzucenie dostawy** — jeśli któryś parametr wpada w przedział
+  dyskwalifikujący, wynik jest oznaczony jako odrzucony, a cena wynosi 0.
+- **Zapis transportów** — nazwa lub numer kontraktu, data, opis; zapisany
+  transport można później otworzyć i poprawić.
+- **Przegląd transportów** — pogrupowane po zbożu, z wyszukiwaniem po nazwie
+  (odpornym na literówki) oraz filtrowaniem po dacie (dzień, zakres, miesiąc,
+  rok) i skupującym.
+- **Tryb jasny i ciemny**, układ przystosowany do telefonu.
+
+## Jak liczona jest cena
+
+Każdy parametr jakości (`QualityParameter`) opisują trzy rzeczy:
+
+- `basePoint` — wartość referencyjna, przy której nie ma dopłaty ani potrącenia,
+- `step` — wielkość kroku (w cenniku Komagry: 0,1%),
+- `brackets` — przedziały wartości, każdy z typem (`premium`, `deduction`,
+  `reject`) i stawką `ratePerStep`.
+
+Silnik liczy różnicę między wartością zmierzoną a `basePoint`, przelicza ją na
+pełne kroki **zaokrąglając w górę** (zasada „za każde rozpoczęte 0,1%"), mnoży
+przez stawkę przedziału i cenę bazową, po czym sumuje wynik po wszystkich
+parametrach. Wartość w przedziale `reject` oznacza całą dostawę jako odrzuconą
+(`rejected: true`, cena końcowa 0).
+
+Silnik (`src/pricingEngine.ts`) jest czystą funkcją i nie zna nazw zbóż ani
+skupujących — cała różnica między cennikami siedzi w danych.
+
+## Stan projektu
+
+| Obszar | Stan |
+|---|---|
+| Silnik przeliczania cen | gotowy, pokryty testami |
+| Cennik rzepaku (Komagra) | wprowadzony |
+| Cenniki pszenicy, żyta, pszenżyta, kukurydzy | brak — potrzebne dokumenty od skupujących |
+| Zapis danych | `localStorage` przeglądarki |
+| Firebase / synchronizacja między urządzeniami | konfiguracja jest, kod jej jeszcze nie używa |
+| Logowanie | brak — dlatego `firestore.rules` blokuje cały dostęp |
+
+Transporty trzymane są na razie wyłącznie w przeglądarce (klucz
+`klosek-transports`), więc nie przechodzą między urządzeniami i znikają razem
+z wyczyszczeniem danych witryny. Przejście na Firestore wymaga najpierw Firebase
+Auth — bez logowania nie ma sensu otwierać reguł dostępu.
+
+## Uruchomienie
+
+Wymagane: Node 22+ i pnpm.
+
+```bash
+pnpm install
+pnpm run dev
+```
+
+Aplikacja wstanie pod adresem wypisanym przez Vite (domyślnie
+`http://localhost:5173`). Firebase nie jest do tego potrzebny.
+
+### Skrypty
+
+| Polecenie | Opis |
+|---|---|
+| `pnpm run dev` | serwer deweloperski |
+| `pnpm run build` | `tsc -b && vite build` |
+| `pnpm run preview` | podgląd zbudowanej wersji |
+| `pnpm run lint` | ESLint |
+| `pnpm run test` | testy jednostkowe silnika (Vitest) |
+| `pnpm run test:e2e` | testy UI w przeglądarce (Playwright) |
+| `pnpm run verify` | lint + build + oba zestawy testów |
+| `pnpm run example` | wypisuje w konsoli przykładowe wyliczenia silnika |
+
+`pnpm run example` pokazuje dwa scenariusze (zanieczyszczenia 4% i 6%,
+wilgotność 7%, cena bazowa 2380 zł) i potwierdza zgodność z ręcznym wyliczeniem:
+2356,20 zł/t oraz 2213,40 zł/t.
+
+Ta sama sekwencja co w `verify` chodzi w CI przy każdym pushu i pull requeście
+do `main` — `.github/workflows/ci.yml`.
+
+### Konfiguracja Firebase
+
+Potrzebna dopiero pod przyszłą synchronizację danych:
+
+1. Załóż projekt w [Firebase Console](https://console.firebase.google.com/)
+   (plan Spark wystarczy).
+2. Dodaj aplikację webową i skopiuj konfigurację SDK.
+3. `cp .env.example .env.local` i uzupełnij wartościami z konsoli. Plików
+   `.env*` nie commituje się do repozytorium.
+
+## Technologie
+
+React 19 · TypeScript · Vite · Tailwind CSS 4 · shadcn/ui (Radix) ·
+React Router · Vitest · Playwright · Firebase (przygotowany)
 
 ## Struktura
 
 ```
 src/
-  pricingEngine.ts          – czysta funkcja calculatePrice(), bez wiedzy o zbożach
-  pricingEngine.test.ts     – testy jednostkowe silnika (vitest)
-  types.ts                  – model silnika (GrainPriceList, QualityParameter, Bracket...)
+  pricingEngine.ts           – silnik: czysta funkcja calculatePrice()
+  pricingEngine.test.ts      – testy silnika
+  types.ts                   – model silnika (GrainPriceList, QualityParameter, Bracket)
+  types/transport.ts         – model zapisanego transportu (osobny od modelu silnika)
   data/
-    rzepak-komagra.ts       – jedyny na razie wypełniony cennik (Komagra, rzepak)
-    grains.ts               – lista zbóż dla UI
-    parameter-labels.ts     – polskie etykiety parametrów jakości
-  types/transport.ts        – model zapisanego transportu (osobny od modelu silnika)
-  pages/                    – kalkulator, lista i szczegóły transportów
-  components/               – layout, dialogi, formularze + ui/ (shadcn)
-  lib/                      – storage, fuzzy-search, cn()
-  examples/
-    example.ts              – przykład użycia + kontrola zgodności z ręcznym wyliczeniem
-tests/calendar.spec.ts      – regresja kalendarza w przeglądarce (playwright)
-tests/transport-edit.spec.ts – tryb edycji transportu (playwright)
-firebase.ts                 – konfiguracja Firebase
-firestore.rules             – celowo deny-all, dopóki nie dojdzie Firebase Auth
+    rzepak-komagra.ts        – cennik rzepaku (Komagra)
+    grains.ts                – lista zbóż dla UI
+    parameter-labels.ts      – polskie etykiety parametrów jakości
+  pages/                     – kalkulator, lista zbóż, lista transportów
+  components/                – layout, dialogi, formularze + ui/ (shadcn)
+  lib/                       – zapis w localStorage, wyszukiwanie rozmyte, cn()
+  examples/example.ts        – przykładowe wyliczenia do wypisania w konsoli
+tests/                       – testy Playwright (kalendarz, tryb edycji)
+firebase.ts                  – konfiguracja Firebase
+firestore.rules              – reguły dostępu (na razie deny-all)
 ```
 
-## Jak to działa
+Uwaga na dwa pliki o podobnej nazwie: `src/types.ts` to model silnika cenowego,
+a `src/types/transport.ts` to model danych transportu w UI.
 
-Każdy parametr jakości (`QualityParameter`) ma:
-- `basePoint` — wartość referencyjną bez dopłaty/potrącenia,
-- `step` — wielkość kroku (z dokumentu Komagry: 0,1%),
-- `brackets` — listę przedziałów, każdy z typem (`premium` / `deduction` / `reject`) i stawką `ratePerStep`.
+## Dodanie kolejnego zboża lub skupującego
 
-Dla podanej wartości silnik liczy różnicę względem `basePoint` w krokach
-(zaokrąglając w górę do pełnego kroku — zasada "za każde rozpoczęte 0,1%"),
-mnoży przez `ratePerStep` i cenę bazową, sumuje po wszystkich parametrach.
-Jeśli wartość wpada w przedział `reject`, cała dostawa jest oznaczona jako
-odrzucona (`rejected: true`) i cena końcowa = 0.
+Nowy cennik to nowy plik w `src/data/`, np. `pszenica-nazwa-skupu.ts`,
+eksportujący obiekt `GrainPriceList` w tym samym kształcie co `rzepakKomagra`.
+Silnik nie wymaga wtedy żadnych zmian — różnica między zbożami i skupującymi to
+dane, nie kod.
 
-## Uruchomienie
+## Plany
 
-```bash
-pnpm install
-pnpm run dev        # aplikacja (Vite)
-pnpm run verify     # bramka przed pushem: lint + build + testy + e2e
-pnpm run lint       # eslint
-pnpm run build      # tsc -b && vite build
-pnpm run test       # testy jednostkowe silnika (vitest)
-pnpm run test:e2e   # testy UI w przeglądarce (playwright)
-pnpm run example    # scenariusze silnika wypisane w konsoli
-```
+1. Uzupełnienie brakujących cenników (pszenica, żyto, pszenżyto, kukurydza).
+2. Firebase Auth, a po nim zapis transportów w Firestore i otwarcie
+   `firestore.rules`.
+3. Walidacja wymagań progowych („spełnia / nie spełnia", np. kwas erukowy, GMO)
+   — `rzepakKomagraHardRequirements` są już w danych, ale nie wchodzą do
+   `calculatePrice()`.
+4. Tryb offline (PWA) i eksport historii do CSV/PDF.
 
-Lint, build i oba zestawy testów chodzą też w CI na każdy push i PR do `main`
-(`.github/workflows/ci.yml`).
+### Otwarte pytania w cenniku rzepaku
 
-### Przykład silnika
+Szczegóły w komentarzach w `src/data/rzepak-komagra.ts`:
 
-Powinno wypisać dwa scenariusze (zanieczyszczenia 4% i 6%, wilgotność 7%,
-cena bazowa 2380 zł) i potwierdzić zgodność z ręcznym wyliczeniem
-(2356,20 zł/t i 2213,40 zł/t).
+- brak zdefiniowanego zachowania poniżej 6,00% wilgotności i poniżej 35,00%
+  zaolejenia,
+- dopłata za zaolejenie powyżej 40% dotyczy wariantu „z dopłatą za poziom
+  zaolejenia" — do potwierdzenia, czy obejmuje ten konkretny kontrakt.
 
-## Dodawanie kolejnego zboża / skupującego
+## Konwencje pracy w kodzie
 
-Nowy plik w `src/data/`, np. `pszenica-nazwa-skupu.ts`, eksportujący obiekt
-`GrainPriceList` w tym samym kształcie co `rzepakKomagra`. Silnik (`pricingEngine.ts`)
-nie wymaga żadnych zmian — cała różnica między zbożami to dane, nie kod.
-
-## Do zrobienia / do potwierdzenia
-
-1. **Brakujące cenniki**: pszenica, żyto, pszenżyto, kukurydza — potrzebne
-   analogiczne dokumenty od skupujących, żeby uzupełnić `src/data/`.
-2. **Otwarte pytania w danych rzepaku** (patrz komentarze w
-   `src/data/rzepak-komagra.ts`):
-   - brak zdefiniowanego zachowania poniżej 6,00% wilgotności i poniżej 35,00% zaolejenia,
-   - dopłata za zaolejenie >40% dotyczy tylko wariantu "z dopłatą za poziom zaolejenia" — do potwierdzenia, czy dotyczy tego konkretnego kontraktu.
-3. **`rzepakKomagraHardRequirements`** (w tym samym pliku) — to progi
-   "spełnia/nie spełnia" bez stopniowanych potrąceń (np. kwas erukowy, GMO).
-   Na razie nie wchodzą do `calculatePrice()` — do rozważenia jako osobna
-   walidacja/checklista w UI przed pokazaniem wyniku.
-4. **Firebase Auth** — dopóki go nie ma, `firestore.rules` blokuje wszystko
-   (faza 3 roadmapy).
-
-## Konwencje pracy
-
-Zasady obowiązujące przy zmianach w kodzie (zaokrąglanie, dodawanie cenników,
-weryfikacja, shadcn/ui) opisuje [`CLAUDE.md`](CLAUDE.md).
+Zasady obowiązujące przy zmianach — zaokrąglanie kroków, dodawanie cenników,
+wymagana weryfikacja przed pushem, praca z shadcn/ui — opisuje
+[`CLAUDE.md`](CLAUDE.md).

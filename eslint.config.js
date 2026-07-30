@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist', 'playwright-report', 'test-results', 'mnt'],
+    ignores: ['dist', 'playwright-report', 'test-results'],
   },
 
   // Kod aplikacji — reguły wymagające informacji o typach (projectService),
