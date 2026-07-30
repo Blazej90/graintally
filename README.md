@@ -13,6 +13,7 @@ z Firebase przewidzianym na warstwę danych.
 ```
 src/
   pricingEngine.ts          – czysta funkcja calculatePrice(), bez wiedzy o zbożach
+  pricingEngine.test.ts     – testy jednostkowe silnika (vitest)
   types.ts                  – model silnika (GrainPriceList, QualityParameter, Bracket...)
   data/
     rzepak-komagra.ts       – jedyny na razie wypełniony cennik (Komagra, rzepak)
@@ -24,6 +25,7 @@ src/
   lib/                      – storage, fuzzy-search, cn()
   examples/
     example.ts              – przykład użycia + kontrola zgodności z ręcznym wyliczeniem
+tests/calendar.spec.ts      – regresja kalendarza w przeglądarce (playwright)
 firebase.ts                 – konfiguracja Firebase
 firestore.rules             – celowo deny-all, dopóki nie dojdzie Firebase Auth
 ```
@@ -47,7 +49,9 @@ odrzucona (`rejected: true`) i cena końcowa = 0.
 pnpm install
 pnpm run dev        # aplikacja (Vite)
 pnpm run build      # tsc -b && vite build
-pnpm run example    # scenariusze kontrolne silnika
+pnpm run test       # testy jednostkowe silnika (vitest)
+pnpm run test:e2e   # testy UI w przeglądarce (playwright)
+pnpm run example    # scenariusze silnika wypisane w konsoli
 ```
 
 ### Przykład silnika

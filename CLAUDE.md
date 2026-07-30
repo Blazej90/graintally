@@ -160,56 +160,56 @@ cenników skupujących, z frontendem React + Vite + Firebase.
   trzymane lokalnie.
 - **UI: shadcn/ui zamiast pisania komponentów od zera.** shadcn jest już
   zainicjowany (`components.json`), komponenty lądują w `src/components/ui/`:
-  `pnpm dlx shadcn@latest add <nazwa>` — ale przeczytaj sekcję niżej, zanim
-  dodasz cokolwiek nowego.
+  `pnpm dlx shadcn@latest add <nazwa>`
+- **Nie dopisuj `forwardRef` do komponentów shadcn.** Projekt stoi na React 19,
+  gdzie `ref` jest zwykłym propsem — komponenty shadcn są poprawne takie, jakie
+  generuje CLI. Kontekst niżej.
 
-## Pułapka: shadcn pisze pod React 19, projekt stoi na React 18
+## Dlaczego React musi zostać na 19
 
-Aktualny shadcn generuje komponenty jako zwykłe funkcje, bez `forwardRef` —
-zakłada React 19, gdzie `ref` jest normalnym propsem. Tu jest **React 18.3.1**,
-więc taki komponent **cicho gubi ref**: dostajesz tylko ostrzeżenie w konsoli
-(„Function components cannot be given refs"), a komponent renderuje się dalej.
+Komponenty shadcn są pisane pod React 19: zwykłe funkcje, bez `forwardRef`.
+Na React 18 taki komponent **cicho gubi ref** — build przechodzi, komponent się
+renderuje, w konsoli leci tylko ostrzeżenie „Function components cannot be given
+refs". Objawy nie wyglądają na problem z refami:
 
-Skutki bywają mylące i nie wyglądają na problem z refami:
+- `Button` bez `forwardRef` → Radix `Slot` nie przekazuje refa przy `asChild` →
+  Popover nie ma elementu kotwiczącego → Floating UI nigdy nie liczy pozycji
+  i popover zostaje na `transform: translate(0, -200%)`, czyli ~586 px nad
+  ekranem. Objaw: „kalendarz się nie otwiera", mimo że jest w DOM, kompletny
+  i widoczny dla `toBeVisible()`.
+- `*Overlay` bez `forwardRef` → Radix `<Presence>` nie mierzy animacji zamykania.
 
-- `Button` bez `forwardRef` → Radix `Slot` nie przekaże refa przy `asChild` →
-  Popover/Dialog nie ma elementu kotwiczącego → Floating UI nigdy nie policzy
-  pozycji i popover zostaje na `transform: translate(0, -200%)`, czyli kilkaset
-  pikseli nad ekranem. Objaw dla użytkownika: „kalendarz się nie otwiera",
-  mimo że jest w DOM, kompletny i widoczny dla testów.
-- `*Overlay` bez `forwardRef` → Radix `<Presence>` nie zmierzy animacji
-  zamykania.
-
-**Zasada:** każdy komponent w `src/components/ui/`, któremu Radix przekazuje ref
-(dziecko `asChild`, dziecko `<Presence>`, overlay, content), musi być opakowany
-w `React.forwardRef`. Już załatane: `Button`, `DialogOverlay`, `SheetOverlay`,
-`AlertDialogOverlay` — każdy z komentarzem w kodzie, żeby nikt tego nie
-„posprzątał" z powrotem do wersji shadcn.
-
-**Po każdym `shadcn add`** sprawdź konsolę pod kątem „cannot be given refs" i
-opakuj wskazany komponent. To nie jest opcjonalne — bez tego dostajesz właśnie
-takie objawy jak wyżej, bez żadnego błędu w buildzie.
-
-Docelowe rozwiązanie to podniesienie Reacta do 19 i powrót do niezmodyfikowanych
-komponentów shadcn. Do tego czasu obowiązuje łatanie.
+Projekt przeszedł przez ten błąd (React 18 + łatki `forwardRef`) i wyszedł z
+niego przez upgrade do React 19. **Cofnięcie Reacta do 18 przywróci go w całości**
+— `tests/calendar.spec.ts` wtedy oblewa wszystkimi ośmioma testami, z czego test
+kalendarza komunikatem „popover ucieka nad górną krawędź, Received: -586.375".
 
 ## Weryfikacja zmian
 
 ```bash
-rtk pnpm run build      # tsc -b && vite build — musi przejść bez błędów typów
-rtk pnpm run example    # tsx src/examples/example.ts — scenariusze silnika
+rtk pnpm run build      # tsc -b && vite build — bez błędów typów
+rtk pnpm run test       # vitest run — silnik cenowy
+rtk pnpm run test:e2e   # playwright test — regresja UI (sam wstaje serwer dev)
+rtk pnpm run example    # tsx src/examples/example.ts — wypisuje scenariusze
 ```
 
-W projekcie **nie ma runnera testów** (`playwright` jest w devDependencies, ale
-bez skryptu `test`) ani ESLinta. Zamiast tego: przy każdej zmianie w silniku
-dopisz scenariusz do `src/examples/example.ts` — to jest tutejsza siatka
-bezpieczeństwa przed regresją, sprawdzająca wynik względem ręcznego wyliczenia.
+- **`src/pricingEngine.test.ts`** — scenariusze silnika sprawdzane względem
+  ręcznego wyliczenia z dokumentu Komagry. Przy zmianie w silniku dopisz tu
+  przypadek, nie tylko do `examples/example.ts` (ten służy do oglądania wyniku
+  w konsoli, nie do łapania regresji).
+- **`tests/calendar.spec.ts`** — regresja kalendarza. Sprawdza **pozycję**
+  popovera, nie samą obecność w DOM: przy tamtym błędzie kalendarz był kompletny
+  i „widoczny", tylko poza ekranem. Jeśli dotykasz `ui/date-picker.tsx`,
+  `ui/calendar.tsx`, `ui/popover.tsx` albo wersji Reacta — uruchom te testy.
+
+ESLinta w projekcie nie ma.
 
 ## Orientacja w kodzie
 
 ```
 src/
   pricingEngine.ts        – czysta funkcja calculatePrice(), bez wiedzy o zbożach
+  pricingEngine.test.ts   – testy silnika (vitest)
   types.ts                – model silnika (GrainPriceList, QualityParameter, Bracket)
   data/
     rzepak-komagra.ts     – jedyny wypełniony cennik + rzepakKomagraHardRequirements
@@ -219,7 +219,8 @@ src/
   pages/                  – calculator-page, transports-page, transports-index-page
   components/             – layout, dialogi, formularze + ui/ (shadcn)
   lib/                    – storage, fuzzy-search, utils (cn)
-  examples/example.ts     – scenariusze kontrolne silnika
+  examples/example.ts     – scenariusze silnika do oglądania w konsoli
+tests/calendar.spec.ts    – regresja kalendarza (playwright)
 firebase.ts               – konfiguracja Firebase (root, nie src/)
 ```
 
