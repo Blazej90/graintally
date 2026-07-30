@@ -4,6 +4,7 @@ import * as React from "react"
 import { format, parseISO, isValid } from "date-fns"
 import { pl } from "date-fns/locale"
 import { CalendarIcon } from "lucide-react"
+import type { DateRange } from "react-day-picker"
 import { pl as dayPickerPl } from "react-day-picker/locale"
 
 import { cn } from "@/lib/utils"
@@ -99,12 +100,36 @@ export function DateRangePicker({
   const [open, setOpen] = React.useState(false)
   const fromDate = fromISODate(from)
   const toDate = fromISODate(to)
-  const selectedRange =
-    fromDate && toDate
+
+  // Początek zakresu po pierwszym kliknięciu, zanim padnie drugie. Trzymamy go
+  // lokalnie, bo propsy `from`/`to` reprezentują tylko zatwierdzony zakres —
+  // bez tego nie da się odróżnić „wybrano początek" od „wybrano całość".
+  // Nie polegamy na zakresie liczonym przez react-day-picker: jego addToRange
+  // dla pustego zakresu zwraca od razu { from: d, to: d }, więc już pierwsze
+  // kliknięcie wyglądałoby na kompletny wybór.
+  const [pendingFrom, setPendingFrom] = React.useState<Date | undefined>()
+
+  const selectedRange: DateRange | undefined = pendingFrom
+    ? { from: pendingFrom, to: undefined }
+    : fromDate
       ? { from: fromDate, to: toDate }
-      : fromDate
-        ? { from: fromDate, to: fromDate }
-        : undefined
+      : undefined
+
+  const handleSelect = (_range: DateRange | undefined, triggerDate: Date) => {
+    if (!pendingFrom) {
+      setPendingFrom(triggerDate)
+      return
+    }
+
+    const [start, end] =
+      triggerDate < pendingFrom
+        ? [triggerDate, pendingFrom]
+        : [pendingFrom, triggerDate]
+
+    onChange({ from: toISODate(start), to: toISODate(end) })
+    setPendingFrom(undefined)
+    setOpen(false)
+  }
 
   const display =
     fromDate && toDate
@@ -114,7 +139,14 @@ export function DateRangePicker({
         : placeholder
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        // Zamknięcie bez drugiego kliknięcia porzuca niedokończony wybór.
+        if (!next) setPendingFrom(undefined)
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -133,15 +165,8 @@ export function DateRangePicker({
         <Calendar
           mode="range"
           selected={selectedRange}
-          onSelect={(range) => {
-            onChange({
-              from: toISODate(range?.from),
-              to: toISODate(range?.to),
-            })
-            if (range?.from && range?.to) {
-              setOpen(false)
-            }
-          }}
+          onSelect={handleSelect}
+          defaultMonth={pendingFrom ?? fromDate}
           locale={dayPickerPl}
         />
       </PopoverContent>
