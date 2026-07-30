@@ -159,4 +159,4 @@ Szczegóły w komentarzach w `src/data/rzepak-komagra.ts`:
 
 Zasady obowiązujące przy zmianach — zaokrąglanie kroków, dodawanie cenników,
 wymagana weryfikacja przed pushem, praca z shadcn/ui — opisuje
-[`CLAUDE.md`](CLAUDE.md).
+[`AGENTS.md`](AGENTS.md). `CLAUDE.md` tylko go importuje.
