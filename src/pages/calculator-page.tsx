@@ -1,8 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { calculatePrice } from '@/pricingEngine';
 import { rzepakKomagra, rzepakKomagraHardRequirements } from '@/data/rzepak-komagra';
 import type { GrainPriceList, PriceCalculationResult } from '@/types';
-import { parseDecimal, cn } from '@/lib/utils';
+import { parseDecimal, cn, formatNumber } from '@/lib/utils';
+import { getTransportById } from '@/lib/storage';
+import type { SavedTransport } from '@/types/transport';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,17 +34,42 @@ import { SaveTransportDialog } from '@/components/save-transport-dialog';
 
 const AVAILABLE_PRICE_LISTS: GrainPriceList[] = [rzepakKomagra];
 
-function formatNumber(n: number): string {
-  return n.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 export default function CalculatorPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const editId = searchParams.get('edit');
+
+  const [existingTransport, setExistingTransport] = useState<SavedTransport | null>(null);
   const [priceList, setPriceList] = useState<GrainPriceList>(AVAILABLE_PRICE_LISTS[0]);
   const [rawBasePrice, setRawBasePrice] = useState<string>('2380');
   const [trailerCount, setTrailerCount] = useState<1 | 2>(1);
   const [trailers, setTrailers] = useState<TrailerFormState[]>([createEmptyTrailer()]);
   const [results, setResults] = useState<PriceCalculationResult[] | null>(null);
   const [calcError, setCalcError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!editId) return;
+    const transport = getTransportById(editId);
+    if (!transport) return;
+
+    setExistingTransport(transport);
+
+    const matchedList = AVAILABLE_PRICE_LISTS.find((p) => p.grain === transport.grain);
+    if (matchedList) setPriceList(matchedList);
+
+    setRawBasePrice(String(transport.basePrice));
+    setTrailerCount(transport.trailerCount);
+    setTrailers(
+      transport.trailers.map((t) => ({
+        tonnage: t.tonnage,
+        values: t.values,
+        hardReqValues: t.hardReqValues,
+        touched: {},
+        hasLabResults: t.hasLabResults,
+      }))
+    );
+    setResults(transport.results ?? null);
+  }, [editId]);
 
   const basePriceNum = parseDecimal(rawBasePrice);
 
@@ -118,6 +146,10 @@ export default function CalculatorPage() {
     setTrailers([createEmptyTrailer()]);
     setResults(null);
     setCalcError(null);
+    if (existingTransport) {
+      setExistingTransport(null);
+      navigate('/', { replace: true });
+    }
   }
 
   const totalValue = results?.reduce((sum, r) => sum + r.totalValue, 0) ?? 0;
@@ -225,16 +257,27 @@ export default function CalculatorPage() {
           trailers={trailers.slice(0, trailerCount)}
           results={results}
           totalValue={totalValue}
+          existingTransport={existingTransport ?? undefined}
         >
           <Button
             type="button"
-            variant="secondary"
+            variant={existingTransport ? 'default' : 'secondary'}
             disabled={!canSave}
             className="h-12 w-full text-base"
           >
-            Zapisz transport
+            {existingTransport ? 'Zapisz zmiany' : 'Zapisz transport'}
           </Button>
         </SaveTransportDialog>
+
+        {existingTransport && (
+          <Button
+            asChild
+            variant="outline"
+            className="h-12 w-full text-base"
+          >
+            <Link to={`/transporty/${existingTransport.grain}`}>Anuluj edycję</Link>
+          </Button>
+        )}
 
         {calcError && (
           <p className="text-center text-sm font-medium text-destructive">{calcError}</p>

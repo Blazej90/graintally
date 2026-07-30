@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { saveTransport } from '@/lib/storage';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { saveTransport, replaceTransport } from '@/lib/storage';
 import type { SavedTransport, SavedTrailer } from '@/types/transport';
 import type { PriceCalculationResult, GrainPriceList } from '@/types';
 
@@ -26,6 +27,7 @@ interface SaveTransportDialogProps {
   results?: PriceCalculationResult[] | null;
   totalValue: number;
   children: React.ReactNode;
+  existingTransport?: SavedTransport;
 }
 
 function todayInputValue(): string {
@@ -40,7 +42,11 @@ export function SaveTransportDialog({
   results,
   totalValue,
   children,
+  existingTransport,
 }: SaveTransportDialogProps) {
+  const navigate = useNavigate();
+  const isEditing = !!existingTransport;
+
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [date, setDate] = useState(todayInputValue());
@@ -48,10 +54,24 @@ export function SaveTransportDialog({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
+  useEffect(() => {
+    if (open && existingTransport) {
+      setName(existingTransport.name);
+      setDate(existingTransport.date);
+      setDescription(existingTransport.description ?? '');
+    }
+  }, [open, existingTransport]);
+
   function reset() {
-    setName('');
-    setDate(todayInputValue());
-    setDescription('');
+    if (existingTransport) {
+      setName(existingTransport.name);
+      setDate(existingTransport.date);
+      setDescription(existingTransport.description ?? '');
+    } else {
+      setName('');
+      setDate(todayInputValue());
+      setDescription('');
+    }
     setError(null);
     setSaved(false);
   }
@@ -74,7 +94,7 @@ export function SaveTransportDialog({
     }));
 
     const transport: SavedTransport = {
-      id: crypto.randomUUID(),
+      id: existingTransport?.id ?? crypto.randomUUID(),
       name: name.trim(),
       date,
       description: description.trim() || undefined,
@@ -85,28 +105,41 @@ export function SaveTransportDialog({
       trailers: savedTrailers,
       results: results ?? undefined,
       totalValue,
-      createdAt: new Date().toISOString(),
+      createdAt: existingTransport?.createdAt ?? new Date().toISOString(),
     };
 
-    saveTransport(transport);
+    if (existingTransport) {
+      replaceTransport(existingTransport.id, transport);
+    } else {
+      saveTransport(transport);
+    }
+
     setSaved(true);
     setTimeout(() => {
       setOpen(false);
       reset();
-    }, 800);
+      if (existingTransport) {
+        navigate(`/transporty/${transport.grain}`);
+      }
+    }, 600);
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => {
-      if (!next) reset();
-      setOpen(next);
-    }}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) reset();
+        setOpen(next);
+      }}
+    >
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Zapisz transport</DialogTitle>
+          <DialogTitle>{isEditing ? 'Edytuj transport' : 'Zapisz transport'}</DialogTitle>
           <DialogDescription>
-            Zapisz dane transportu, żeby później wrócić do nich w „Moich transportach”.
+            {isEditing
+              ? 'Zapisz zmiany w transporcie.'
+              : 'Zapisz dane transportu, żeby później wrócić do nich w „Moich transportach".'}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -139,13 +172,19 @@ export function SaveTransportDialog({
             />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
-          {saved && <p className="text-sm font-medium text-primary">Transport zapisany!</p>}
+          {saved && (
+            <p className="text-sm font-medium text-primary">
+              {isEditing ? 'Zmiany zapisane!' : 'Transport zapisany!'}
+            </p>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
             Anuluj
           </Button>
-          <Button onClick={handleSave}>Zapisz transport</Button>
+          <Button onClick={handleSave}>
+            {isEditing ? 'Zapisz zmiany' : 'Zapisz transport'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

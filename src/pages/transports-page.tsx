@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ChevronDown, ChevronUp, Trash2, Calculator, ArrowLeft } from 'lucide-react';
+import { ChevronDown, ChevronUp, Trash2, Calculator, ArrowLeft, Pencil } from 'lucide-react';
 import { getTransports, deleteTransport } from '@/lib/storage';
 import { formatNumber, fuzzySearch } from '@/lib/utils';
 import { GRAINS, getGrainLabel } from '@/data/grains';
+import { getParameterLabel, formatParameterValue } from '@/data/parameter-labels';
 import type { SavedTransport } from '@/types/transport';
 
 import { Button } from '@/components/ui/button';
@@ -211,6 +212,12 @@ export default function TransportsPage() {
                     )}
                   </Button>
 
+                  <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" asChild>
+                    <Link to={`/?edit=${transport.id}`}>
+                      <Pencil className="mr-1 size-3" /> Edytuj
+                    </Link>
+                  </Button>
+
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button
@@ -280,30 +287,35 @@ function TransportDetails({ transport }: { transport: SavedTransport }) {
             <span className="text-muted-foreground">Tonaż:</span>{' '}
             <span className="font-medium">{trailer.tonnage} t</span>
           </p>
-          {Object.entries(trailer.values).length > 0 && (
+          {Object.entries(trailer.values).filter(([, value]) => value !== '').length > 0 && (
             <div>
               <span className="text-muted-foreground">Parametry:</span>
               <ul className="ml-4 list-disc">
-                {Object.entries(trailer.values).map(([key, value]) => (
-                  <li key={key}>
-                    {key}: {value}
-                  </li>
-                ))}
+                {Object.entries(trailer.values)
+                  .filter(([, value]) => value !== '')
+                  .map(([key, value]) => (
+                    <li key={key}>
+                      {getParameterLabel(key)}: {formatParameterValue(key, value)}
+                    </li>
+                  ))}
               </ul>
             </div>
           )}
-          {trailer.hasLabResults && Object.entries(trailer.hardReqValues).length > 0 && (
-            <div>
-              <span className="text-muted-foreground">Badanie laboratoryjne:</span>
-              <ul className="ml-4 list-disc">
-                {Object.entries(trailer.hardReqValues).map(([key, value]) => (
-                  <li key={key}>
-                    {key}: {value}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {trailer.hasLabResults &&
+            Object.entries(trailer.hardReqValues).filter(([, value]) => value !== '').length > 0 && (
+              <div>
+                <span className="text-muted-foreground">Badanie laboratoryjne:</span>
+                <ul className="ml-4 list-disc">
+                  {Object.entries(trailer.hardReqValues)
+                    .filter(([, value]) => value !== '')
+                    .map(([key, value]) => (
+                      <li key={key}>
+                        {getParameterLabel(key)}: {formatParameterValue(key, value)}
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
           {transport.results?.[idx] && (
             <p>
               <span className="text-muted-foreground">Wynik:</span>{' '}
