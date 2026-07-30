@@ -2,6 +2,7 @@ import { Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { DatePicker, DateRangePicker } from '@/components/ui/date-picker';
 import {
   Select,
   SelectContent,
@@ -131,35 +132,25 @@ export function TransportFilters({ filters, onChange, buyers }: TransportFilters
       {filters.dateMode === 'day' && (
         <div className="space-y-2">
           <Label className="text-sm font-medium">Wybierz dzień</Label>
-          <Input
-            type="date"
+          <DatePicker
             value={filters.dateDay}
-            onChange={(e) => update({ dateDay: e.target.value })}
+            onChange={(value) => update({ dateDay: value })}
             className="h-12 sm:h-10"
           />
         </div>
       )}
 
       {filters.dateMode === 'range' && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Od</Label>
-            <Input
-              type="date"
-              value={filters.dateFrom}
-              onChange={(e) => update({ dateFrom: e.target.value })}
-              className="h-12 sm:h-10"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Do</Label>
-            <Input
-              type="date"
-              value={filters.dateTo}
-              onChange={(e) => update({ dateTo: e.target.value })}
-              className="h-12 sm:h-10"
-            />
-          </div>
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Wybierz zakres</Label>
+          <DateRangePicker
+            from={filters.dateFrom}
+            to={filters.dateTo}
+            onChange={(range) =>
+              update({ dateFrom: range.from, dateTo: range.to })
+            }
+            className="h-12 sm:h-10"
+          />
         </div>
       )}
 

@@ -1,4 +1,4 @@
-import { Wheat, Menu } from 'lucide-react';
+import { Wheat, Menu, Calculator, Tractor } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { ModeToggle } from '@/components/mode-toggle';
 import { Button } from '@/components/ui/button';
@@ -6,8 +6,8 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 
 const NAV_LINKS = [
-  { path: '/', label: 'Kalkulator' },
-  { path: '/transporty', label: 'Moje transporty' },
+  { path: '/', label: 'Kalkulator', icon: Calculator },
+  { path: '/transporty', label: 'Moje transporty', icon: Tractor },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -29,18 +29,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
           <div className="flex items-center gap-2">
             <nav className="hidden items-center gap-1 sm:flex">
-              {NAV_LINKS.map((link) => (
-                <Button
-                  key={link.path}
-                  variant={location.pathname === link.path ? 'secondary' : 'ghost'}
-                  size="sm"
-                  asChild
-                >
-                  <Link to={link.path}>{link.label}</Link>
-                </Button>
-              ))}
+              {NAV_LINKS.map((link) => {
+                const Icon = link.icon
+                return (
+                  <Button
+                    key={link.path}
+                    variant={location.pathname === link.path ? 'secondary' : 'ghost'}
+                    size="sm"
+                    asChild
+                  >
+                    <Link to={link.path}>
+                      <Icon className="size-4" />
+                      {link.label}
+                    </Link>
+                  </Button>
+                )
+              })}
             </nav>
-            <div className="hidden sm:block">
+            <div className="flex items-center">
               <ModeToggle />
             </div>
 
@@ -52,22 +58,25 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-64">
-                <div className="flex h-full flex-col gap-6 pt-6">
+                <div className="flex h-full flex-col gap-6 pt-12">
                   <nav className="flex flex-col gap-2">
-                    {NAV_LINKS.map((link) => (
-                      <Button
-                        key={link.path}
-                        variant={location.pathname === link.path ? 'secondary' : 'ghost'}
-                        className={cn('justify-start', location.pathname === link.path && 'font-semibold')}
-                        asChild
-                      >
-                        <Link to={link.path}>{link.label}</Link>
-                      </Button>
-                    ))}
+                    {NAV_LINKS.map((link) => {
+                      const Icon = link.icon
+                      return (
+                        <Button
+                          key={link.path}
+                          variant={location.pathname === link.path ? 'secondary' : 'ghost'}
+                          className={cn('justify-start', location.pathname === link.path && 'font-semibold')}
+                          asChild
+                        >
+                          <Link to={link.path}>
+                            <Icon className="size-4" />
+                            {link.label}
+                          </Link>
+                        </Button>
+                      )
+                    })}
                   </nav>
-                  <div className="mt-auto border-t pt-4">
-                    <ModeToggle />
-                  </div>
                 </div>
               </SheetContent>
             </Sheet>

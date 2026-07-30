@@ -17,6 +17,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { DatePicker } from '@/components/ui/date-picker';
 import type { TrailerFormState } from '@/components/trailer-form';
 
 interface SaveTransportDialogProps {
@@ -154,11 +155,11 @@ export function SaveTransportDialog({
           </div>
           <div className="space-y-2">
             <Label htmlFor="transport-date">Data transportu</Label>
-            <Input
+            <DatePicker
               id="transport-date"
-              type="date"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={setDate}
+              className="h-12 sm:h-10"
             />
           </div>
           <div className="space-y-2">
