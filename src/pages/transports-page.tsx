@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ChevronDown, ChevronUp, Trash2, Calculator } from 'lucide-react';
+import { Link, useParams } from 'react-router-dom';
+import { ChevronDown, ChevronUp, Trash2, Calculator, ArrowLeft } from 'lucide-react';
 import { getTransports, deleteTransport } from '@/lib/storage';
-import { formatNumber } from '@/lib/utils';
+import { formatNumber, fuzzySearch } from '@/lib/utils';
+import { GRAINS, getGrainLabel } from '@/data/grains';
 import type { SavedTransport } from '@/types/transport';
 
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  TransportFilters,
+  DEFAULT_FILTERS,
+  type TransportFiltersState,
+} from '@/components/transport-filters';
 
 function formatDate(dateString: string): string {
   if (!dateString) return '';
@@ -31,29 +37,103 @@ function formatDate(dateString: string): string {
   return `${day}.${month}.${year}`;
 }
 
+function matchesDateFilter(transport: SavedTransport, filters: TransportFiltersState): boolean {
+  if (filters.dateMode === 'any') return true;
+  if (!transport.date) return false;
+
+  const t = transport.date;
+
+  if (filters.dateMode === 'day') {
+    return t === filters.dateDay;
+  }
+
+  if (filters.dateMode === 'range') {
+    if (filters.dateFrom && t < filters.dateFrom) return false;
+    if (filters.dateTo && t > filters.dateTo) return false;
+    return true;
+  }
+
+  if (filters.dateMode === 'month') {
+    const [year, month] = t.split('-');
+    const monthMatch = !filters.dateMonth || month === filters.dateMonth;
+    const yearMatch = !filters.dateYear || year === filters.dateYear;
+    return monthMatch && yearMatch;
+  }
+
+  return true;
+}
+
 export default function TransportsPage() {
+  const { grain } = useParams<{ grain: string }>();
+  const grainLabel = getGrainLabel(grain ?? '');
+  const isValidGrain = GRAINS.some((g) => g.key === grain);
+
   const [transports, setTransports] = useState<SavedTransport[]>(() => getTransports());
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<TransportFiltersState>(DEFAULT_FILTERS);
+
+  const grainTransports = useMemo(
+    () => transports.filter((t) => t.grain === grain),
+    [transports, grain]
+  );
+
+  const filteredTransports = useMemo(() => {
+    return grainTransports.filter((t) => {
+      if (filters.query && !fuzzySearch(filters.query, t.name)) return false;
+      if (!matchesDateFilter(t, filters)) return false;
+      if (filters.buyer !== 'all' && t.buyer !== filters.buyer) return false;
+      return true;
+    });
+  }, [grainTransports, filters]);
+
+  const buyers = useMemo(() => {
+    const set = new Set(grainTransports.map((t) => t.buyer));
+    return Array.from(set).sort();
+  }, [grainTransports]);
 
   const summary = useMemo(() => {
-    const count = transports.length;
-    const totalValue = transports.reduce((sum, t) => sum + (t.totalValue || 0), 0);
+    const count = filteredTransports.length;
+    const totalValue = filteredTransports.reduce((sum, t) => sum + (t.totalValue || 0), 0);
     return { count, totalValue };
-  }, [transports]);
+  }, [filteredTransports]);
 
   function handleDelete(id: string) {
     deleteTransport(id);
     setTransports(getTransports());
   }
 
-  if (transports.length === 0) {
+  if (!isValidGrain) {
     return (
       <main className="mx-auto max-w-xl p-4 sm:p-6">
         <Card className="text-center">
           <CardHeader>
-            <CardTitle>Brak zapisanych transportów</CardTitle>
+            <CardTitle>Nieznane zboże</CardTitle>
+            <CardDescription>Wybierz zboże z listy „Moje transporty".</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link to="/transporty">Wróć do zbóż</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
+  if (grainTransports.length === 0) {
+    return (
+      <main className="mx-auto max-w-xl space-y-4 p-4 pb-10 sm:p-6">
+        <Button variant="ghost" size="sm" asChild className="h-8 px-2">
+          <Link to="/transporty">
+            <ArrowLeft className="mr-1 size-4" /> Wróć do zbóż
+          </Link>
+        </Button>
+
+        <Card className="text-center">
+          <CardHeader>
+            <CardTitle>Brak transportów {grainLabel.toLowerCase()}</CardTitle>
             <CardDescription>
-              Wróć do kalkulatora i zapisz pierwszy transport.
+              Nie masz jeszcze zapisanych transportów tego zboża.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -68,26 +148,27 @@ export default function TransportsPage() {
 
   return (
     <main className="mx-auto max-w-xl space-y-4 p-4 pb-10 sm:space-y-6 sm:p-6 sm:pb-12">
+      <Button variant="ghost" size="sm" asChild className="h-8 px-2">
+        <Link to="/transporty">
+          <ArrowLeft className="mr-1 size-4" /> Wróć do zbóż
+        </Link>
+      </Button>
+
       <Card className="border-primary/20 bg-gradient-to-br from-card to-secondary/40">
         <CardHeader>
-          <CardTitle>Podsumowanie</CardTitle>
+          <CardTitle>Transporty: {grainLabel}</CardTitle>
+          <CardDescription>
+            {summary.count === 0
+              ? 'Brak wyników dla wybranych filtrów.'
+              : `${summary.count} ${summary.count === 1 ? 'transport' : 'transporty'} o wartości ${formatNumber(summary.totalValue)} zł`}
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Liczba transportów</span>
-            <span className="font-semibold">{summary.count}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Suma wartości</span>
-            <span className="text-lg font-bold text-primary">
-              {formatNumber(summary.totalValue)} zł
-            </span>
-          </div>
-        </CardContent>
       </Card>
 
+      <TransportFilters filters={filters} onChange={setFilters} buyers={buyers} />
+
       <div className="space-y-3">
-        {transports.map((transport) => {
+        {filteredTransports.map((transport) => {
           const isExpanded = expandedId === transport.id;
           return (
             <Card key={transport.id}>
@@ -96,8 +177,9 @@ export default function TransportsPage() {
                   <div>
                     <CardTitle className="text-base">{transport.name}</CardTitle>
                     <CardDescription>
-                      {formatDate(transport.date)} · {transport.grain} ({transport.buyer}) ·{' '}
-                      {transport.trailerCount} {transport.trailerCount === 1 ? 'przyczepa' : 'przyczepy'}
+                      {formatDate(transport.date)} · {transport.buyer} ·{' '}
+                      {transport.trailerCount}{' '}
+                      {transport.trailerCount === 1 ? 'przyczepa' : 'przyczepy'}
                     </CardDescription>
                   </div>
                   <div className="text-right">
