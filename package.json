@@ -15,7 +15,7 @@
     "lucide-react": "^1.27.0",
     "radix-ui": "^1.6.7",
     "react": "^18.3.1",
-    "react-day-picker": "^10.0.1",
+    "react-day-picker": "^9.7.0",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.18.1"
   },
@@ -27,6 +27,7 @@
     "@vitejs/plugin-react": "^4.3.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "playwright": "^1.62.0",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.19.0",
