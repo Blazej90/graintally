@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ChevronDown, ChevronUp, Trash2, Calculator, ArrowLeft, Pencil } from 'lucide-react';
+import { ChevronDown, ChevronUp, Trash2, Calculator, ArrowLeft, Pencil, Download } from 'lucide-react';
 import { getTransports, deleteTransport } from '@/lib/storage';
 import { formatNumber, fuzzySearch } from '@/lib/utils';
+import { downloadTransportPdf } from '@/lib/pdf-export';
 import { GRAINS, getGrainLabel } from '@/data/grains';
 import { getParameterLabel, formatParameterValue } from '@/data/parameter-labels';
 import type { SavedTransport } from '@/types/transport';
@@ -216,6 +217,15 @@ export default function TransportsPage() {
                     <Link to={`/?edit=${transport.id}`}>
                       <Pencil className="mr-1 size-3" /> Edytuj
                     </Link>
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2 text-xs"
+                    onClick={() => void downloadTransportPdf(transport)}
+                  >
+                    <Download className="mr-1 size-3" /> PDF
                   </Button>
 
                   <AlertDialog>
