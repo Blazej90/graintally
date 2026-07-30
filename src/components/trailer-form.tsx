@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { FlaskConical } from 'lucide-react';
-import { parseDecimal, cn } from '@/lib/utils';
+import { parseDecimal } from '@/lib/utils';
 import { rzepakKomagraHardRequirements } from '@/data/rzepak-komagra';
 import type { GrainPriceList } from '@/types';
 

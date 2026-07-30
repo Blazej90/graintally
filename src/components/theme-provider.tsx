@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useSyncExternalStore } from 'react';
 
 type Theme = 'dark' | 'light' | 'system';
 
@@ -9,6 +9,19 @@ interface ThemeProviderState {
 }
 
 const ThemeProviderContext = createContext<ThemeProviderState | undefined>(undefined);
+
+const DARK_QUERY = '(prefers-color-scheme: dark)';
+
+// Preferencja systemowa to zewnętrzne źródło prawdy, więc czytamy ją przez
+// useSyncExternalStore zamiast kopiować do stanu efektem. Referencje muszą być
+// stabilne, stąd definicje poza komponentem.
+function subscribeToSystemTheme(onChange: () => void) {
+  const media = window.matchMedia(DARK_QUERY);
+  media.addEventListener('change', onChange);
+  return () => media.removeEventListener('change', onChange);
+}
+
+const getSystemPrefersDark = () => window.matchMedia(DARK_QUERY).matches;
 
 interface ThemeProviderProps {
   children: React.ReactNode;
@@ -26,38 +39,25 @@ export function ThemeProvider({
     return (localStorage.getItem(storageKey) as Theme) || defaultTheme;
   });
 
-  const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>('light');
+  const systemPrefersDark = useSyncExternalStore(
+    subscribeToSystemTheme,
+    getSystemPrefersDark,
+    () => false
+  );
 
+  // Wyliczane, nie trzymane w stanie. Przy poprzedniej wersji (useState +
+  // ustawianie w efekcie) pierwszy render szedł zawsze jako 'light', więc
+  // ikona motywu mrugała przy wejściu w trybie ciemnym.
+  const resolvedTheme: 'dark' | 'light' =
+    theme === 'system' ? (systemPrefersDark ? 'dark' : 'light') : theme;
+
+  // Klasa na <html> to synchronizacja z zewnętrznym systemem (DOM), czyli
+  // właściwe zastosowanie efektu.
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
-
-    let resolved: 'dark' | 'light';
-    if (theme === 'system') {
-      resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    } else {
-      resolved = theme;
-    }
-
-    root.classList.add(resolved);
-    setResolvedTheme(resolved);
-  }, [theme]);
-
-  useEffect(() => {
-    if (theme !== 'system') return;
-
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => {
-      const resolved = media.matches ? 'dark' : 'light';
-      const root = window.document.documentElement;
-      root.classList.remove('light', 'dark');
-      root.classList.add(resolved);
-      setResolvedTheme(resolved);
-    };
-
-    media.addEventListener('change', handler);
-    return () => media.removeEventListener('change', handler);
-  }, [theme]);
+    root.classList.add(resolvedTheme);
+  }, [resolvedTheme]);
 
   const setTheme = (next: Theme) => {
     localStorage.setItem(storageKey, next);

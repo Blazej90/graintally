@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { saveTransport, replaceTransport } from '@/lib/storage';
 import type { SavedTransport, SavedTrailer } from '@/types/transport';
@@ -55,14 +55,9 @@ export function SaveTransportDialog({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
-    if (open && existingTransport) {
-      setName(existingTransport.name);
-      setDate(existingTransport.date);
-      setDescription(existingTransport.description ?? '');
-    }
-  }, [open, existingTransport]);
-
+  // Wypełnienie pól robi reset() wołane z onOpenChange — otwarcie dialogu to
+  // zdarzenie użytkownika, a nie synchronizacja z systemem zewnętrznym, więc
+  // efekt był tu niepotrzebnym źródłem kaskadowego renderu.
   function reset() {
     if (existingTransport) {
       setName(existingTransport.name);
@@ -120,7 +115,8 @@ export function SaveTransportDialog({
       setOpen(false);
       reset();
       if (existingTransport) {
-        navigate(`/transporty/${transport.grain}`);
+        // navigate() zwraca Promise od react-router 7; nie ma na co czekać.
+        void navigate(`/transporty/${transport.grain}`);
       }
     }, 600);
   }
@@ -129,7 +125,9 @@ export function SaveTransportDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) reset();
+        // Zarówno otwarcie (wypełnienie z existingTransport lub wartości
+        // domyślne), jak i zamknięcie (porzucenie zmian) sprowadza się do reset().
+        reset();
         setOpen(next);
       }}
     >

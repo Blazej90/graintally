@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { calculatePrice } from '@/pricingEngine';
 import { rzepakKomagra, rzepakKomagraHardRequirements } from '@/data/rzepak-komagra';
@@ -34,42 +34,47 @@ import { SaveTransportDialog } from '@/components/save-transport-dialog';
 
 const AVAILABLE_PRICE_LISTS: GrainPriceList[] = [rzepakKomagra];
 
+/**
+ * Wrapper czytający `?edit=<id>`. Formularz dostaje transport propsem i jest
+ * kluczowany po `editId`, więc wejście i wyjście z trybu edycji przemontowuje
+ * go ze świeżym stanem. Dzięki temu inicjalizacja siedzi w useState zamiast
+ * w efekcie przepisującym pięć setterów po zamontowaniu.
+ */
 export default function CalculatorPage() {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const editId = searchParams.get('edit');
+  const existingTransport = (editId ? getTransportById(editId) : undefined) ?? null;
 
-  const [existingTransport, setExistingTransport] = useState<SavedTransport | null>(null);
-  const [priceList, setPriceList] = useState<GrainPriceList>(AVAILABLE_PRICE_LISTS[0]);
-  const [rawBasePrice, setRawBasePrice] = useState<string>('2380');
-  const [trailerCount, setTrailerCount] = useState<1 | 2>(1);
-  const [trailers, setTrailers] = useState<TrailerFormState[]>([createEmptyTrailer()]);
-  const [results, setResults] = useState<PriceCalculationResult[] | null>(null);
+  return <CalculatorForm key={editId ?? 'nowy'} existingTransport={existingTransport} />;
+}
+
+function CalculatorForm({ existingTransport }: { existingTransport: SavedTransport | null }) {
+  const navigate = useNavigate();
+
+  const [priceList, setPriceList] = useState<GrainPriceList>(
+    () =>
+      AVAILABLE_PRICE_LISTS.find((p) => p.grain === existingTransport?.grain) ??
+      AVAILABLE_PRICE_LISTS[0]
+  );
+  const [rawBasePrice, setRawBasePrice] = useState<string>(() =>
+    existingTransport ? String(existingTransport.basePrice) : '2380'
+  );
+  const [trailerCount, setTrailerCount] = useState<1 | 2>(existingTransport?.trailerCount ?? 1);
+  const [trailers, setTrailers] = useState<TrailerFormState[]>(() =>
+    existingTransport
+      ? existingTransport.trailers.map((t) => ({
+          tonnage: t.tonnage,
+          values: t.values,
+          hardReqValues: t.hardReqValues,
+          touched: {},
+          hasLabResults: t.hasLabResults,
+        }))
+      : [createEmptyTrailer()]
+  );
+  const [results, setResults] = useState<PriceCalculationResult[] | null>(
+    existingTransport?.results ?? null
+  );
   const [calcError, setCalcError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!editId) return;
-    const transport = getTransportById(editId);
-    if (!transport) return;
-
-    setExistingTransport(transport);
-
-    const matchedList = AVAILABLE_PRICE_LISTS.find((p) => p.grain === transport.grain);
-    if (matchedList) setPriceList(matchedList);
-
-    setRawBasePrice(String(transport.basePrice));
-    setTrailerCount(transport.trailerCount);
-    setTrailers(
-      transport.trailers.map((t) => ({
-        tonnage: t.tonnage,
-        values: t.values,
-        hardReqValues: t.hardReqValues,
-        touched: {},
-        hasLabResults: t.hasLabResults,
-      }))
-    );
-    setResults(transport.results ?? null);
-  }, [editId]);
 
   const basePriceNum = parseDecimal(rawBasePrice);
 
@@ -141,15 +146,19 @@ export default function CalculatorPage() {
   }
 
   function handleReset() {
+    if (existingTransport) {
+      // Wyjście z trybu edycji zmienia editId, więc wrapper przemontuje
+      // formularz z domyślnymi wartościami — nie ma co czyścić ręcznie.
+      // navigate() zwraca Promise od react-router 7; nie ma na co czekać.
+      void navigate('/', { replace: true });
+      return;
+    }
+
     setRawBasePrice('2380');
     setTrailerCount(1);
     setTrailers([createEmptyTrailer()]);
     setResults(null);
     setCalcError(null);
-    if (existingTransport) {
-      setExistingTransport(null);
-      navigate('/', { replace: true });
-    }
   }
 
   const totalValue = results?.reduce((sum, r) => sum + r.totalValue, 0) ?? 0;

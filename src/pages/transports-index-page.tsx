@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Wheat, Calculator } from 'lucide-react';
 import { getTransports } from '@/lib/storage';
 import { formatNumber } from '@/lib/utils';
-import { GRAINS, getGrainLabel } from '@/data/grains';
+import { GRAINS } from '@/data/grains';
 
 import { Button } from '@/components/ui/button';
 import {
