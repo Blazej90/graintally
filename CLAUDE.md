@@ -160,7 +160,38 @@ cenników skupujących, z frontendem React + Vite + Firebase.
   trzymane lokalnie.
 - **UI: shadcn/ui zamiast pisania komponentów od zera.** shadcn jest już
   zainicjowany (`components.json`), komponenty lądują w `src/components/ui/`:
-  `pnpm dlx shadcn@latest add <nazwa>`
+  `pnpm dlx shadcn@latest add <nazwa>` — ale przeczytaj sekcję niżej, zanim
+  dodasz cokolwiek nowego.
+
+## Pułapka: shadcn pisze pod React 19, projekt stoi na React 18
+
+Aktualny shadcn generuje komponenty jako zwykłe funkcje, bez `forwardRef` —
+zakłada React 19, gdzie `ref` jest normalnym propsem. Tu jest **React 18.3.1**,
+więc taki komponent **cicho gubi ref**: dostajesz tylko ostrzeżenie w konsoli
+(„Function components cannot be given refs"), a komponent renderuje się dalej.
+
+Skutki bywają mylące i nie wyglądają na problem z refami:
+
+- `Button` bez `forwardRef` → Radix `Slot` nie przekaże refa przy `asChild` →
+  Popover/Dialog nie ma elementu kotwiczącego → Floating UI nigdy nie policzy
+  pozycji i popover zostaje na `transform: translate(0, -200%)`, czyli kilkaset
+  pikseli nad ekranem. Objaw dla użytkownika: „kalendarz się nie otwiera",
+  mimo że jest w DOM, kompletny i widoczny dla testów.
+- `*Overlay` bez `forwardRef` → Radix `<Presence>` nie zmierzy animacji
+  zamykania.
+
+**Zasada:** każdy komponent w `src/components/ui/`, któremu Radix przekazuje ref
+(dziecko `asChild`, dziecko `<Presence>`, overlay, content), musi być opakowany
+w `React.forwardRef`. Już załatane: `Button`, `DialogOverlay`, `SheetOverlay`,
+`AlertDialogOverlay` — każdy z komentarzem w kodzie, żeby nikt tego nie
+„posprzątał" z powrotem do wersji shadcn.
+
+**Po każdym `shadcn add`** sprawdź konsolę pod kątem „cannot be given refs" i
+opakuj wskazany komponent. To nie jest opcjonalne — bez tego dostajesz właśnie
+takie objawy jak wyżej, bez żadnego błędu w buildzie.
+
+Docelowe rozwiązanie to podniesienie Reacta do 19 i powrót do niezmodyfikowanych
+komponentów shadcn. Do tego czasu obowiązuje łatanie.
 
 ## Weryfikacja zmian
 

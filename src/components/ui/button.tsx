@@ -38,20 +38,26 @@ const buttonVariants = cva(
   }
 )
 
-function Button({
-  className,
-  variant = "default",
-  size = "default",
-  asChild = false,
-  ...props
-}: React.ComponentProps<"button"> &
+type ButtonProps = React.ComponentPropsWithoutRef<"button"> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean
-  }) {
+  }
+
+// forwardRef jest tu wymagany, mimo że shadcn generuje ten komponent bez niego.
+// Tamten wariant zakłada React 19, gdzie `ref` jest zwykłym propsem; projekt stoi
+// na React 18, więc bez forwardRef ref cichcem znika. Radix przekazuje ref przez
+// <Slot> do dziecka `asChild` — gdy ref nie dojdzie, Popover/Dialog nie ma
+// elementu kotwiczącego i Floating UI nie policzy pozycji (popover ląduje poza
+// ekranem na `transform: translate(0, -200%)`).
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { className, variant = "default", size = "default", asChild = false, ...props },
+  ref
+) {
   const Comp = asChild ? Slot.Root : "button"
 
   return (
     <Comp
+      ref={ref}
       data-slot="button"
       data-variant={variant}
       data-size={size}
@@ -59,6 +65,6 @@ function Button({
       {...props}
     />
   )
-}
+})
 
 export { Button, buttonVariants }
