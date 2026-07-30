@@ -1,19 +1,31 @@
-# Silnik przeliczania cen skupu zbóż
+# GrainTally — kalkulator cen skupu zbóż
 
-Moduł do wyliczania ceny netto/t i wartości dostawy na podstawie cennika
-skupującego (dopłaty/potrącenia za wilgotność, zanieczyszczenia, zaolejenie itd.).
-Framework-agnostic — do podłączenia pod dowolny frontend (React/Vite + Firebase w kolejnym kroku).
+Aplikacja licząca cenę netto/t i wartość dostawy na podstawie cennika
+skupującego (dopłaty/potrącenia za wilgotność, zanieczyszczenia, zaolejenie itd.),
+z zapisem transportów i ich przeglądem.
+
+Sercem projektu jest framework-agnostyczny silnik (`src/pricingEngine.ts`),
+niezależny od UI. Wokół niego stoi frontend React + Vite + Tailwind (shadcn/ui),
+z Firebase przewidzianym na warstwę danych.
 
 ## Struktura
 
 ```
 src/
-  types.ts                  – model danych (GrainPriceList, QualityParameter, Bracket...)
-  pricingEngine.ts           – czysta funkcja calculatePrice() + logika liczenia
+  pricingEngine.ts          – czysta funkcja calculatePrice(), bez wiedzy o zbożach
+  types.ts                  – model silnika (GrainPriceList, QualityParameter, Bracket...)
   data/
-    rzepak-komagra.ts        – jedyny na razie wypełniony cennik (Komagra, rzepak)
+    rzepak-komagra.ts       – jedyny na razie wypełniony cennik (Komagra, rzepak)
+    grains.ts               – lista zbóż dla UI
+    parameter-labels.ts     – polskie etykiety parametrów jakości
+  types/transport.ts        – model zapisanego transportu (osobny od modelu silnika)
+  pages/                    – kalkulator, lista i szczegóły transportów
+  components/               – layout, dialogi, formularze + ui/ (shadcn)
+  lib/                      – storage, fuzzy-search, cn()
   examples/
-    example.ts               – przykład użycia + kontrola zgodności z ręcznym wyliczeniem
+    example.ts              – przykład użycia + kontrola zgodności z ręcznym wyliczeniem
+firebase.ts                 – konfiguracja Firebase
+firestore.rules             – celowo deny-all, dopóki nie dojdzie Firebase Auth
 ```
 
 ## Jak to działa
@@ -29,12 +41,16 @@ mnoży przez `ratePerStep` i cenę bazową, sumuje po wszystkich parametrach.
 Jeśli wartość wpada w przedział `reject`, cała dostawa jest oznaczona jako
 odrzucona (`rejected: true`) i cena końcowa = 0.
 
-## Uruchomienie przykładu
+## Uruchomienie
 
 ```bash
-npm install
-npm run example
+pnpm install
+pnpm run dev        # aplikacja (Vite)
+pnpm run build      # tsc -b && vite build
+pnpm run example    # scenariusze kontrolne silnika
 ```
+
+### Przykład silnika
 
 Powinno wypisać dwa scenariusze (zanieczyszczenia 4% i 6%, wilgotność 7%,
 cena bazowa 2380 zł) i potwierdzić zgodność z ręcznym wyliczeniem
@@ -46,21 +62,7 @@ Nowy plik w `src/data/`, np. `pszenica-nazwa-skupu.ts`, eksportujący obiekt
 `GrainPriceList` w tym samym kształcie co `rzepakKomagra`. Silnik (`pricingEngine.ts`)
 nie wymaga żadnych zmian — cała różnica między zbożami to dane, nie kod.
 
-## Komponenty UI
-
-Przy budowaniu interfejsu korzystaj z gotowych komponentów z
-[shadcn/ui](https://ui.shadcn.com) zamiast pisać własne od zera:
-
-```bash
-pnpm dlx shadcn@latest add <nazwa-komponentu>
-```
-
-Jeśli shadcn nie jest jeszcze zainicjowany w projekcie (brak pliku
-`components.json`), najpierw `pnpm dlx shadcn@latest init --template vite` —
-CLI wykryje Vite + React i skonfiguruje Tailwind, `cn()` util oraz zmienne CSS
-automatycznie.
-
-## Do zrobienia / do potwierdzenia (dla agenta kontynuującego pracę)
+## Do zrobienia / do potwierdzenia
 
 1. **Brakujące cenniki**: pszenica, żyto, pszenżyto, kukurydza — potrzebne
    analogiczne dokumenty od skupujących, żeby uzupełnić `src/data/`.
@@ -72,25 +74,10 @@ automatycznie.
    "spełnia/nie spełnia" bez stopniowanych potrąceń (np. kwas erukowy, GMO).
    Na razie nie wchodzą do `calculatePrice()` — do rozważenia jako osobna
    walidacja/checklista w UI przed pokazaniem wyniku.
-4. **Kolejny krok**: szkielet aplikacji (React + Vite + TypeScript + Firebase
-   Firestore/Hosting) korzystający z tego modułu — osobna dostawa.
+4. **Firebase Auth** — dopóki go nie ma, `firestore.rules` blokuje wszystko
+   (faza 3 roadmapy).
 
-## Tipy dla agenta pracującego w tym projekcie
+## Konwencje pracy
 
-- **Cała logika cenowa to dane, nie kod.** Nowy cennik = nowy plik w
-  `src/data/`, nigdy nowa gałąź `if`/`switch` w `pricingEngine.ts`.
-- **Zaokrąglanie zawsze w górę.** "Za każde rozpoczęte 0,1%" = `Math.ceil`,
-  nigdy `Math.round` ani `Math.floor` — to celowe, nie błąd do naprawienia.
-- **Przed uznaniem zadania za zakończone** uruchom `pnpm run build` (albo
-  `tsc -b` w samym module) — ma przechodzić bez błędów typów.
-- **Menedżer pakietów: pnpm**, nie npm/yarn — nie generuj `package-lock.json`
-  ani `yarn.lock`.
-- **Nie commituj `.env` / `.env.local`** — tylko `.env.example`. Prawdziwe
-  klucze Firebase trzymane są lokalnie.
-- **`firestore.rules` jest celowo `deny-all`**, dopóki nie dojdzie Firebase
-  Auth — nie odblokowuj bez wyraźnej instrukcji.
-- **UI: shadcn/ui zamiast pisania od zera** — patrz sekcja "Komponenty UI"
-  wyżej.
-- Przy zmianach w silniku dopisz scenariusz testowy do `examples/example.ts`
-  zamiast tylko ręcznie sprawdzać w konsoli — łatwiej złapać regresję przy
-  kolejnej zmianie.
+Zasady obowiązujące przy zmianach w kodzie (zaokrąglanie, dodawanie cenników,
+weryfikacja, shadcn/ui) opisuje [`CLAUDE.md`](CLAUDE.md).
