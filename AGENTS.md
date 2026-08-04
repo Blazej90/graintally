@@ -159,6 +159,12 @@ cenników skupujących, z frontendem React + Vite + Firebase.
   celowe, nie błąd do naprawienia. Uwaga na rozróżnienie: pozostałe `Math.round`
   w tym pliku zaokrąglają **kwoty do groszy** (`*100 / 100`) i z tą zasadą nie
   mają nic wspólnego.
+- **Dostawa = jedna waga i jedna wspólna próbka.** Traktor wjeżdża na wagę
+  z całym zestawem (też gdy ma spięte dwie przyczepy), a próbkę do badania
+  pobiera się z całego zestawu naraz. W UI NIE MA rozdzielenia na przyczepy —
+  jeden formularz (tonaż + parametry + lab), jeden wynik z `calculatePrice()`.
+  `trailerCount` i tablica `trailers[]` w zapisanych transportach to układ
+  legacy — nowe zapisy mają zawsze jeden wpis z łącznym tonażem.
 - **Menedżer pakietów: pnpm.** Nie generuj `package-lock.json` ani `yarn.lock`.
   W repo jest `pnpm-workspace.yaml`.
 - **`firestore.rules` jest celowo deny-all** do czasu dodania Firebase Auth
@@ -239,6 +245,9 @@ rtk pnpm run example    # tsx src/examples/example.ts — wypisuje scenariusze
 - **`tests/transport-edit.spec.ts`** — tryb edycji (`/?edit=<id>`). Formularz
   kalkulatora wypełnia się na pierwszym renderze, a wyjście z edycji polega na
   przemontowaniu przez zmianę `key` — te testy pilnują obu ścieżek.
+- **`tests/calculator.spec.ts`** — kalkulator liczy dostawę jako jedną całość
+  (jedna waga, jedna próbka), bez rozdzielenia na przyczepy. Pilnuje też, że
+  edycja starego zapisu zestawu sumuje tonaże przyczep w jedną wagę.
 
 To samo (lint + build + oba zestawy testów) chodzi w CI na każdy push i PR do
 `main` — `.github/workflows/ci.yml`. Przy porażce e2e raport Playwrighta ląduje
@@ -275,6 +284,8 @@ src/
 tests/
   calendar.spec.ts        – regresja kalendarza (playwright)
   transport-edit.spec.ts  – tryb edycji transportu (playwright)
+  calculator.spec.ts      – kalkulator: jedna dostawa, jeden wynik (playwright)
+  transports-pdf.spec.ts  – przycisk eksportu PDF (playwright)
 firebase.ts               – konfiguracja Firebase (root, nie src/)
 ```
 

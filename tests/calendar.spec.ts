@@ -64,9 +64,21 @@ async function expectPopoverOnScreen(page: Page) {
     .soft(box!.y + box!.height, 'popover ucieka pod dolną krawędź')
     .toBeLessThanOrEqual(viewport!.height);
 
-  // Przy błędzie ref-a kalendarz też miał 35 dni — sprawdzamy je dopiero po
-  // pozycji, żeby raport wskazywał właściwą przyczynę.
-  await expect(popover.locator('button[data-day]')).toHaveCount(35);
+  // Przy błędzie ref-a kalendarz też renderował pełną siatkę dni — sprawdzamy
+  // ją dopiero po pozycji, żeby raport wskazywał właściwą przyczynę. Liczby
+  // nie wolno zaszyć na sztywno: miesiąc rozciąga się na 4–6 tygodni siatki
+  // (np. lipiec 2026 = 35 dni, sierpień 2026 = 42 dni).
+  const expectedDays = expectedGridDayCount(new Date());
+  await expect(popover.locator('button[data-day]')).toHaveCount(expectedDays);
+}
+
+/** Liczba przycisków dni w siatce miesiąca: pełne tygodnie (pon–nd) × 7. */
+function expectedGridDayCount(month: Date): number {
+  const year = month.getFullYear();
+  const daysInMonth = new Date(year, month.getMonth() + 1, 0).getDate();
+  // Przesunięcie pierwszego dnia miesiąca przy tygodniu zaczynającym się w poniedziałek.
+  const firstWeekday = (new Date(year, month.getMonth(), 1).getDay() + 6) % 7;
+  return Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
 }
 
 async function openDateFilter(page: Page, mode: 'Konkretny dzień' | 'Zakres dat') {

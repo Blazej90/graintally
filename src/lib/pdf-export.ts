@@ -1,6 +1,6 @@
 import type { TDocumentDefinitions, Content } from 'pdfmake/interfaces';
 import type { SavedTransport, SavedTrailer } from '@/types/transport';
-import type { ParameterResult } from '@/types';
+import type { ParameterResult, PriceCalculationResult } from '@/types';
 import { getGrainLabel } from '@/data/grains';
 import { getParameterLabel, formatParameterValue } from '@/data/parameter-labels';
 
@@ -25,19 +25,78 @@ function margin(a: number, b: number, c: number, d: number): [number, number, nu
   return [a, b, c, d];
 }
 
+function buildResultSection(
+  result: PriceCalculationResult,
+  heading: string,
+  valueLabel: string
+): Content[] {
+  const resultRows: (string | number)[][] = [
+    ['Tonaż', `${result.tonnage} t`],
+    ['Cena końcowa / t', `${fmt(result.finalPricePerTonne)} zł/t`],
+    [valueLabel, `${fmt(result.totalValue)} zł`],
+  ];
+
+  if (result.rejected) {
+    resultRows.unshift([
+      'Status',
+      `ODRZUT${result.rejectReason ? ` – ${result.rejectReason}` : ''}`,
+    ]);
+  }
+
+  const section: Content[] = [
+    { text: heading, style: 'tableHeader' },
+    {
+      table: {
+        widths: ['*', '*'],
+        body: resultRows,
+      },
+      layout: 'lightHorizontalLines',
+      margin: margin(0, 0, 0, 8),
+    },
+  ];
+
+  if (result.parameterResults.length > 0) {
+    section.push(
+      { text: 'Rozliczenie parametrów', style: 'tableHeader' },
+      {
+        table: {
+          widths: ['*', '*', '*'],
+          body: [
+            ['Parametr', 'Wartość', 'Wpływ / t'],
+            ...result.parameterResults.map((pr: ParameterResult) => [
+              pr.label,
+              String(pr.value),
+              `${pr.amountPerTonne >= 0 ? '+' : ''}${fmt(pr.amountPerTonne)} zł/t`,
+            ]),
+          ],
+        },
+        layout: 'lightHorizontalLines',
+        margin: margin(0, 0, 0, 8),
+      }
+    );
+  }
+
+  return section;
+}
+
 function buildTrailerSection(
   transport: SavedTransport,
   trailer: SavedTrailer,
   index: number
 ): Content[] {
-  const result = transport.results?.[index];
+  // Osobny wynik per wpis tylko w starych zapisach (dane rozbite na przyczepy);
+  // nowe dostawy mają zawsze jeden wpis z łącznym tonażem i jeden wynik.
+  const result =
+    transport.results && transport.results.length === transport.trailers.length
+      ? transport.results[index]
+      : undefined;
   const params = Object.entries(trailer.values).filter(([, value]) => value !== '');
   const labParams = trailer.hasLabResults
     ? Object.entries(trailer.hardReqValues).filter(([, value]) => value !== '')
     : [];
 
   const section: Content[] = [
-    { text: `Przyczepa nr ${index + 1}`, style: 'subheader' },
+    { text: 'Dane dostawy', style: 'subheader' },
     {
       table: {
         widths: ['*', '*'],
@@ -92,50 +151,7 @@ function buildTrailerSection(
   }
 
   if (result) {
-    const resultRows: (string | number)[][] = [
-      ['Cena końcowa / t', `${fmt(result.finalPricePerTonne)} zł/t`],
-      ['Wartość przyczepy', `${fmt(result.totalValue)} zł`],
-    ];
-
-    if (result.rejected) {
-      resultRows.unshift([
-        'Status',
-        `ODRZUT${result.rejectReason ? ` – ${result.rejectReason}` : ''}`,
-      ]);
-    }
-
-    section.push(
-      { text: 'Wynik przeliczenia', style: 'tableHeader' },
-      {
-        table: {
-          widths: ['*', '*'],
-          body: resultRows,
-        },
-        layout: 'lightHorizontalLines',
-        margin: margin(0, 0, 0, 8),
-      }
-    );
-
-    if (result.parameterResults.length > 0) {
-      section.push(
-        { text: 'Rozliczenie parametrów', style: 'tableHeader' },
-        {
-          table: {
-            widths: ['*', '*', '*'],
-            body: [
-              ['Parametr', 'Wartość', 'Wpływ / t'],
-              ...result.parameterResults.map((pr: ParameterResult) => [
-                pr.label,
-                String(pr.value),
-                `${pr.amountPerTonne >= 0 ? '+' : ''}${fmt(pr.amountPerTonne)} zł/t`,
-              ]),
-            ],
-          },
-          layout: 'lightHorizontalLines',
-          margin: margin(0, 0, 0, 8),
-        }
-      );
-    }
+    section.push(...buildResultSection(result, 'Wynik przeliczenia', 'Wartość dostawy'));
   }
 
   return section;
@@ -154,6 +170,12 @@ export async function downloadTransportPdf(transport: SavedTransport): Promise<v
 
   pdfMake.vfs = pdfFonts;
 
+  // Wariant przejściowy: zapis z wieloma wpisami, ale jednym wspólnym wynikiem.
+  const setResult =
+    transport.results && transport.results.length === 1 && transport.trailers.length > 1
+      ? transport.results[0]
+      : undefined;
+
   const docDefinition: TDocumentDefinitions = {
     content: [
       { text: transport.name, style: 'title' },
@@ -164,7 +186,9 @@ export async function downloadTransportPdf(transport: SavedTransport): Promise<v
             ['Data', formatDate(transport.date)],
             ['Zboże', getGrainLabel(transport.grain)],
             ['Kupujący', transport.buyer],
-            ['Liczba przyczep', String(transport.trailerCount)],
+            // Liczba przyczep tylko w starych zapisach zestawu — dziś dostawa
+            // to jedna waga, więc pole nie ma znaczenia.
+            ...(transport.trailerCount === 2 ? [['Liczba przyczep', '2 (zestaw)']] : []),
             ['Cena bazowa', `${fmt(transport.basePrice)} zł/t`],
           ],
         },
@@ -180,6 +204,9 @@ export async function downloadTransportPdf(transport: SavedTransport): Promise<v
       ...transport.trailers.flatMap((trailer, idx) =>
         buildTrailerSection(transport, trailer, idx)
       ),
+      ...(setResult
+        ? buildResultSection(setResult, 'Wynik przeliczenia — średnia zestawu', 'Wartość zestawu')
+        : []),
       {
         table: {
           widths: ['*', '*'],

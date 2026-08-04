@@ -48,6 +48,31 @@ export default function CalculatorPage() {
   return <CalculatorForm key={editId ?? 'nowy'} existingTransport={existingTransport} />;
 }
 
+/**
+ * Starsze zapisy miały dane rozbite na przyczepy (z osobnymi tonażami). Dziś
+ * dostawa to jedna waga i jedna wspólna próbka — przy edycji starego zapisu
+ * sumujemy tonaże i bierzemy pomiary z pierwszej przyczepy.
+ */
+function initDelivery(existingTransport: SavedTransport | null): TrailerFormState {
+  if (!existingTransport) return createEmptyTrailer();
+
+  const first = existingTransport.trailers[0];
+  const tonnage =
+    existingTransport.trailers.length > 1
+      ? String(
+          existingTransport.trailers.reduce((sum, t) => sum + (parseDecimal(t.tonnage) ?? 0), 0)
+        )
+      : (first?.tonnage ?? '1');
+
+  return {
+    tonnage,
+    values: first?.values ?? {},
+    hardReqValues: first?.hardReqValues ?? {},
+    hasLabResults: first?.hasLabResults ?? false,
+    touched: {},
+  };
+}
+
 function CalculatorForm({ existingTransport }: { existingTransport: SavedTransport | null }) {
   const navigate = useNavigate();
 
@@ -59,18 +84,7 @@ function CalculatorForm({ existingTransport }: { existingTransport: SavedTranspo
   const [rawBasePrice, setRawBasePrice] = useState<string>(() =>
     existingTransport ? String(existingTransport.basePrice) : '2380'
   );
-  const [trailerCount, setTrailerCount] = useState<1 | 2>(existingTransport?.trailerCount ?? 1);
-  const [trailers, setTrailers] = useState<TrailerFormState[]>(() =>
-    existingTransport
-      ? existingTransport.trailers.map((t) => ({
-          tonnage: t.tonnage,
-          values: t.values,
-          hardReqValues: t.hardReqValues,
-          touched: {},
-          hasLabResults: t.hasLabResults,
-        }))
-      : [createEmptyTrailer()]
-  );
+  const [trailer, setTrailer] = useState<TrailerFormState>(() => initDelivery(existingTransport));
   const [results, setResults] = useState<PriceCalculationResult[] | null>(
     existingTransport?.results ?? null
   );
@@ -78,43 +92,21 @@ function CalculatorForm({ existingTransport }: { existingTransport: SavedTranspo
 
   const basePriceNum = parseDecimal(rawBasePrice);
 
-  const trailerValidations = useMemo(() => {
-    return trailers.map((t) => validateTrailer(priceList, t));
-  }, [trailers, priceList]);
-
-  function updateTrailer(index: number, patch: Partial<TrailerFormState>) {
-    setTrailers((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], ...patch };
-      return next;
-    });
-  }
-
-  function handleTrailerCountChange(count: 1 | 2) {
-    setTrailerCount(count);
-    setTrailers((prev) => {
-      if (count === 1) return [prev[0] ?? createEmptyTrailer()];
-      const first = prev[0] ?? createEmptyTrailer();
-      const second = prev[1] ?? createEmptyTrailer();
-      return [first, second];
-    });
-    setResults(null);
-    setCalcError(null);
-  }
+  const trailerValidation = useMemo(() => {
+    return validateTrailer(priceList, trailer);
+  }, [trailer, priceList]);
 
   function handleCalculate() {
     setCalcError(null);
 
-    setTrailers((prev) =>
-      prev.map((t) => {
-        const nextTouched: Record<string, boolean> = { ...t.touched, tonnage: true };
-        for (const p of priceList.parameters) nextTouched[p.key] = true;
-        if (t.hasLabResults) {
-          for (const req of rzepakKomagraHardRequirements) nextTouched[req.key] = true;
-        }
-        return { ...t, touched: nextTouched };
-      })
-    );
+    setTrailer((prev) => {
+      const nextTouched: Record<string, boolean> = { ...prev.touched, tonnage: true };
+      for (const p of priceList.parameters) nextTouched[p.key] = true;
+      if (prev.hasLabResults) {
+        for (const req of rzepakKomagraHardRequirements) nextTouched[req.key] = true;
+      }
+      return { ...prev, touched: nextTouched };
+    });
 
     if (basePriceNum === null || basePriceNum <= 0) {
       setCalcError('Podaj poprawną dodatnią cenę bazową.');
@@ -122,23 +114,18 @@ function CalculatorForm({ existingTransport }: { existingTransport: SavedTranspo
       return;
     }
 
-    const invalidTrailerIndex = trailerValidations.findIndex((v) => v.hasErrors);
-    if (invalidTrailerIndex !== -1) {
-      setCalcError(`Popraw dane w przyczepie nr ${invalidTrailerIndex + 1}.`);
+    if (trailerValidation.hasErrors) {
+      setCalcError('Popraw dane transportu.');
       setResults(null);
       return;
     }
 
     try {
-      const nextResults = trailers.map((t) => {
-        const validation = validateTrailer(priceList, t);
-        const inputs = priceList.parameters.map((p) => ({
-          key: p.key,
-          value: validation.parameterNumbers[p.key] ?? p.basePoint,
-        }));
-        return calculatePrice(priceList, basePriceNum, inputs, validation.tonnageNum ?? 0);
-      });
-      setResults(nextResults);
+      const inputs = priceList.parameters.map((p) => ({
+        key: p.key,
+        value: trailerValidation.parameterNumbers[p.key] ?? p.basePoint,
+      }));
+      setResults([calculatePrice(priceList, basePriceNum, inputs, trailerValidation.tonnageNum ?? 0)]);
     } catch (e) {
       setResults(null);
       setCalcError((e as Error).message);
@@ -155,14 +142,15 @@ function CalculatorForm({ existingTransport }: { existingTransport: SavedTranspo
     }
 
     setRawBasePrice('2380');
-    setTrailerCount(1);
-    setTrailers([createEmptyTrailer()]);
+    setTrailer(createEmptyTrailer());
     setResults(null);
     setCalcError(null);
   }
 
   const totalValue = results?.reduce((sum, r) => sum + r.totalValue, 0) ?? 0;
-  const anyRejected = results?.some((r) => r.rejected) ?? false;
+  // Wynik aktualny tylko gdy jest dokładnie jeden — starsze zapisy zestawu
+  // mają dwa wyniki (przyczepy liczone osobno) i wymagają przeliczenia.
+  const currentResult = results?.length === 1 ? results[0] : null;
 
   const canSave = basePriceNum !== null && basePriceNum > 0;
 
@@ -183,7 +171,7 @@ function CalculatorForm({ existingTransport }: { existingTransport: SavedTranspo
                 const next = AVAILABLE_PRICE_LISTS.find((p) => p.grain === value);
                 if (next) {
                   setPriceList(next);
-                  setTrailers((prev) => prev.map(() => createEmptyTrailer()));
+                  setTrailer(createEmptyTrailer());
                   setResults(null);
                   setCalcError(null);
                 }
@@ -213,42 +201,10 @@ function CalculatorForm({ existingTransport }: { existingTransport: SavedTranspo
             }
             onChange={(v) => setRawBasePrice(v)}
           />
-
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Liczba przyczep</Label>
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                type="button"
-                variant={trailerCount === 1 ? 'default' : 'outline'}
-                className="h-12 text-base"
-                onClick={() => handleTrailerCountChange(1)}
-              >
-                Jedna przyczepa
-              </Button>
-              <Button
-                type="button"
-                variant={trailerCount === 2 ? 'default' : 'outline'}
-                className="h-12 text-base"
-                onClick={() => handleTrailerCountChange(2)}
-              >
-                Dwie przyczepy
-              </Button>
-            </div>
-          </div>
         </CardContent>
       </Card>
 
-      <div className="space-y-4">
-        {trailers.slice(0, trailerCount).map((trailer, index) => (
-          <TrailerForm
-            key={index}
-            index={index + 1}
-            priceList={priceList}
-            data={trailer}
-            onChange={(patch) => updateTrailer(index, patch)}
-          />
-        ))}
-      </div>
+      <TrailerForm priceList={priceList} data={trailer} onChange={(patch) => setTrailer((prev) => ({ ...prev, ...patch }))} />
 
       <div className="space-y-3 pt-1">
         <Button
@@ -262,8 +218,8 @@ function CalculatorForm({ existingTransport }: { existingTransport: SavedTranspo
         <SaveTransportDialog
           priceList={priceList}
           basePrice={basePriceNum ?? 0}
-          trailerCount={trailerCount}
-          trailers={trailers.slice(0, trailerCount)}
+          trailerCount={1}
+          trailers={[trailer]}
           results={results}
           totalValue={totalValue}
           existingTransport={existingTransport ?? undefined}
@@ -304,94 +260,54 @@ function CalculatorForm({ existingTransport }: { existingTransport: SavedTranspo
             </CardAction>
           </CardHeader>
           <CardContent className="space-y-5">
-            {anyRejected ? (
-              <div className="space-y-3">
-                {results.map((result, idx) =>
-                  result.rejected ? (
-                    <div
-                      key={idx}
-                      className="rounded-lg border border-destructive/30 bg-destructive/10 p-3"
-                    >
-                      <p className="text-sm font-semibold text-destructive">
-                        Przyczepa nr {idx + 1}: brak przyjęcia
-                      </p>
-                      <p className="text-sm text-destructive/90">{result.rejectReason}</p>
-                    </div>
-                  ) : (
-                    <div key={idx} className="rounded-lg border p-3">
-                      <p className="text-sm text-muted-foreground">Przyczepa nr {idx + 1}</p>
-                      <p className="text-lg font-semibold text-primary">
-                        {formatNumber(result.finalPricePerTonne)} zł/t
-                      </p>
-                      <p className="text-sm">Wartość: {formatNumber(result.totalValue)} zł</p>
-                    </div>
-                  )
-                )}
+            {!currentResult ? (
+              <p className="text-sm text-muted-foreground">
+                Zapisany wynik pochodzi z poprzedniej wersji (przyczepy liczone osobno). Kliknij
+                „Oblicz cenę", aby przeliczyć dostawę.
+              </p>
+            ) : currentResult.rejected ? (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3">
+                <p className="text-sm font-semibold text-destructive">Brak przyjęcia</p>
+                <p className="text-sm text-destructive/90">{currentResult.rejectReason}</p>
               </div>
             ) : (
               <>
-                <div
-                  className={cn(
-                    'grid gap-3',
-                    results.length === 2 ? 'grid-cols-2' : 'grid-cols-1'
-                  )}
-                >
-                  {results.map((result, idx) => (
-                    <div
-                      key={idx}
-                      className={cn(
-                        'rounded-lg border bg-card p-3 text-center',
-                        results.length === 1 && 'p-4'
-                      )}
-                    >
-                      <p className="text-xs text-muted-foreground sm:text-sm">
-                        Przyczepa nr {idx + 1} ({trailers[idx].tonnage} t)
-                      </p>
-                      <p
-                        className={cn(
-                          'font-bold text-primary',
-                          results.length === 1 ? 'text-4xl sm:text-5xl' : 'text-2xl sm:text-3xl'
-                        )}
-                      >
-                        {formatNumber(result.finalPricePerTonne)} zł/t
-                      </p>
-                      <p className="text-xs text-muted-foreground sm:text-sm">
-                        Wartość: {formatNumber(result.totalValue)} zł
-                      </p>
-                    </div>
+                <div className="rounded-lg border bg-card p-4 text-center">
+                  <p className="text-xs text-muted-foreground sm:text-sm">
+                    Dostawa ({formatNumber(currentResult.tonnage)} t)
+                  </p>
+                  <p className="text-4xl font-bold text-primary sm:text-5xl">
+                    {formatNumber(currentResult.finalPricePerTonne)} zł/t
+                  </p>
+                  <p className="text-xs text-muted-foreground sm:text-sm">
+                    Wartość: {formatNumber(currentResult.totalValue)} zł
+                  </p>
+                </div>
+
+                <div className="space-y-2 rounded-lg border bg-card p-4">
+                  <ResultRow
+                    label="Cena bazowa"
+                    value={`${formatNumber(currentResult.basePrice)} zł/t`}
+                  />
+                  {currentResult.parameterResults.map((r) => (
+                    <ResultRow
+                      key={r.key}
+                      label={`${r.label}: ${r.value}${r.type === 'base' ? ' (baza)' : ''}`}
+                      value={`${r.amountPerTonne > 0 ? '+' : ''}${formatNumber(r.amountPerTonne)} zł/t`}
+                      valueClassName={
+                        r.amountPerTonne > 0
+                          ? 'text-green-600'
+                          : r.amountPerTonne < 0
+                            ? 'text-destructive'
+                            : undefined
+                      }
+                    />
                   ))}
                 </div>
 
-                {results.length === 1 && (
-                  <div className="space-y-2 rounded-lg border bg-card p-4">
-                    <ResultRow
-                      label="Cena bazowa"
-                      value={`${formatNumber(results[0].basePrice)} zł/t`}
-                    />
-                    {results[0].parameterResults.map((r) => (
-                      <ResultRow
-                        key={r.key}
-                        label={`${r.label}: ${r.value}${r.type === 'base' ? ' (baza)' : ''}`}
-                        value={`${r.amountPerTonne > 0 ? '+' : ''}${formatNumber(r.amountPerTonne)} zł/t`}
-                        valueClassName={
-                          r.amountPerTonne > 0
-                            ? 'text-green-600'
-                            : r.amountPerTonne < 0
-                              ? 'text-destructive'
-                              : undefined
-                        }
-                      />
-                    ))}
-                  </div>
-                )}
-
                 <div className="rounded-lg bg-primary p-4 text-center text-primary-foreground shadow-sm">
-                  <p className="text-sm text-primary-foreground/90">
-                    {results.length === 1 ? 'Wartość dostawy' : 'Suma wartości dostawy'}
-                  </p>
-                  <p className="text-2xl font-bold sm:text-3xl">
-                    {formatNumber(totalValue)} zł
-                  </p>
+                  <p className="text-sm text-primary-foreground/90">Wartość dostawy</p>
+                  <p className="text-2xl font-bold sm:text-3xl">{formatNumber(totalValue)} zł</p>
                 </div>
               </>
             )}

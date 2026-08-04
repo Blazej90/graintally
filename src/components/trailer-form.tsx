@@ -71,13 +71,12 @@ export function validateTrailer(priceList: GrainPriceList, data: TrailerFormStat
 }
 
 interface TrailerFormProps {
-  index: number;
   priceList: GrainPriceList;
   data: TrailerFormState;
   onChange: (patch: Partial<TrailerFormState>) => void;
 }
 
-export function TrailerForm({ index, priceList, data, onChange }: TrailerFormProps) {
+export function TrailerForm({ priceList, data, onChange }: TrailerFormProps) {
   const { errors, hardReqFailures } = useMemo(
     () => validateTrailer(priceList, data),
     [priceList, data]
@@ -85,10 +84,10 @@ export function TrailerForm({ index, priceList, data, onChange }: TrailerFormPro
 
   return (
     <div className="space-y-4 rounded-xl border bg-card p-4 shadow-sm">
-      <h3 className="text-base font-semibold text-primary">Przyczepa nr {index}</h3>
+      <h3 className="text-base font-semibold text-primary">Dane dostawy</h3>
 
       <NumberField
-        id={`trailer-${index}-tonnage`}
+        id="transport-tonnage"
         label="Tonaż (t)"
         value={data.tonnage}
         error={data.touched.tonnage ? errors.tonnage : undefined}
@@ -104,7 +103,7 @@ export function TrailerForm({ index, priceList, data, onChange }: TrailerFormPro
       {priceList.parameters.map((p) => (
         <NumberField
           key={p.key}
-          id={`trailer-${index}-${p.key}`}
+          id={`transport-${p.key}`}
           label={`${p.label} (${p.unit})`}
           placeholder={String(p.basePoint)}
           value={data.values[p.key] ?? ''}
@@ -129,13 +128,13 @@ export function TrailerForm({ index, priceList, data, onChange }: TrailerFormPro
           <div className="flex shrink-0 items-center gap-2">
             <FlaskConical className="size-4 text-muted-foreground" />
             <Label
-              htmlFor={`labResults-${index}`}
+              htmlFor="labResults"
               className="text-xs font-normal whitespace-nowrap sm:text-sm"
             >
               Mam wyniki
             </Label>
             <Switch
-              id={`labResults-${index}`}
+              id="labResults"
               checked={data.hasLabResults}
               onCheckedChange={(checked) => {
                 const patch: Partial<TrailerFormState> = { hasLabResults: checked };
@@ -164,7 +163,7 @@ export function TrailerForm({ index, priceList, data, onChange }: TrailerFormPro
               return (
                 <NumberField
                   key={req.key}
-                  id={`trailer-${index}-${req.key}`}
+                  id={`transport-${req.key}`}
                   label={req.label}
                   helperText={`max ${req.max}${req.unit}`}
                   value={data.hardReqValues[req.key] ?? ''}

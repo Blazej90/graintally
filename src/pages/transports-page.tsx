@@ -179,9 +179,8 @@ export default function TransportsPage() {
                   <div>
                     <CardTitle className="text-base">{transport.name}</CardTitle>
                     <CardDescription>
-                      {formatDate(transport.date)} · {transport.buyer} ·{' '}
-                      {transport.trailerCount}{' '}
-                      {transport.trailerCount === 1 ? 'przyczepa' : 'przyczepy'}
+                      {formatDate(transport.date)} · {transport.buyer}
+                      {transport.trailerCount === 2 ? ' · zestaw 2 przyczep' : ''}
                     </CardDescription>
                   </div>
                   <div className="text-right">
@@ -276,6 +275,17 @@ export default function TransportsPage() {
 }
 
 function TransportDetails({ transport }: { transport: SavedTransport }) {
+  // Starsze zapisy zestawu mają wynik per przyczepa (przyczepy liczone osobno);
+  // nowe mają jeden wspólny wynik ze średniej parametrów dla całego zestawu.
+  const perTrailerResults =
+    transport.results && transport.results.length === transport.trailers.length
+      ? transport.results
+      : undefined;
+  const setResult =
+    transport.results && transport.results.length === 1 && transport.trailers.length > 1
+      ? transport.results[0]
+      : undefined;
+
   return (
     <div className="space-y-3 rounded-lg border bg-secondary/20 p-3 text-sm">
       <div className="space-y-1">
@@ -292,7 +302,7 @@ function TransportDetails({ transport }: { transport: SavedTransport }) {
 
       {transport.trailers.map((trailer, idx) => (
         <div key={idx} className="space-y-1 border-t pt-2">
-          <p className="font-semibold">Przyczepa nr {idx + 1}</p>
+          <p className="font-semibold">Dane dostawy</p>
           <p>
             <span className="text-muted-foreground">Tonaż:</span>{' '}
             <span className="font-medium">{trailer.tonnage} t</span>
@@ -326,17 +336,30 @@ function TransportDetails({ transport }: { transport: SavedTransport }) {
                 </ul>
               </div>
             )}
-          {transport.results?.[idx] && (
+          {perTrailerResults?.[idx] && (
             <p>
               <span className="text-muted-foreground">Wynik:</span>{' '}
               <span className="font-medium text-primary">
-                {formatNumber(transport.results[idx].finalPricePerTonne)} zł/t
+                {formatNumber(perTrailerResults[idx].finalPricePerTonne)} zł/t
               </span>{' '}
-              ({formatNumber(transport.results[idx].totalValue)} zł)
+              ({formatNumber(perTrailerResults[idx].totalValue)} zł)
             </p>
           )}
         </div>
       ))}
+
+      {setResult && (
+        <div className="space-y-1 border-t pt-2">
+          <p className="font-semibold">Wynik zestawu (średnia ze wspólnej próbki)</p>
+          <p>
+            <span className="text-muted-foreground">Cena końcowa:</span>{' '}
+            <span className="font-medium text-primary">
+              {formatNumber(setResult.finalPricePerTonne)} zł/t
+            </span>{' '}
+            ({formatNumber(setResult.totalValue)} zł)
+          </p>
+        </div>
+      )}
     </div>
   );
 }
